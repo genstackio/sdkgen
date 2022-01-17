@@ -1,0 +1,62 @@
+// noinspection JSUnusedGlobalSymbols
+
+// first-class models
+
+<%
+
+const selectedModels = Object.entries(models).filter(([k, v]) => !!v.required && !ignoredModels[k]).reduce((acc, [k]) => Object.assign(acc, {[k]: models[k]}), {});
+let typeNames = Object.entries(selectedModels).map(([k]) => k);
+
+-%>
+<% typeNames.forEach(type => {
+
+const t = models[type];
+let requiredFields = Object.entries(t.fields).filter(([n, field]) => !!field.required);
+let optionalFields = Object.entries(t.fields).filter(([n, field]) => !field.required);
+
+%>export type <%= t.name %> = {
+<% if (requiredFields.length > 0) { -%>
+    // required
+<% requiredFields.forEach(([n, field]) => { -%>
+    <%= n %><%= field.required ? '' : '?' %>: <%= field.type %><%- field.list ? '[]' : '' %>;
+<% }) -%>
+<% } -%>
+<% if (optionalFields.length > 0) { -%>
+    // optional
+<% optionalFields.forEach(([n, field]) => { -%>
+    <%= n %><%= field.required ? '' : '?' %>: <%= field.type %><%- field.list ? '[]' : '' %>;
+<% }) -%>
+<% } -%>
+};
+<% }) -%>
+
+// helper types
+
+<%
+
+typeNames = Object.entries(models).filter(([k, v]) => !v.required && !ignoredModels[k]).map(([k]) => k);
+
+-%>
+<% typeNames.forEach(type => {
+
+const t = models[type];
+let requiredFields = Object.entries(t.fields).filter(([n, field]) => !!field.required);
+let optionalFields = Object.entries(t.fields).filter(([n, field]) => !field.required);
+
+%>export type <%= t.name %> = <% if (t.values) { %><%- t.values.map(vvv => JSON.stringify(vvv)).join(' | ') %>;
+<%} else { %>{
+<% if (requiredFields.length > 0) { -%>
+    // required
+<% requiredFields.forEach(([n, field]) => { -%>
+    <%= n %><%= field.required ? '' : '?' %>: <%= field.type %><%- field.list ? '[]' : '' %>;
+<% }) -%>
+<% } -%>
+<% if (optionalFields.length > 0) { -%>
+    // optional
+<% optionalFields.forEach(([n, field]) => { -%>
+    <%= n %><%= field.required ? '' : '?' %>: <%= field.type %><%- field.list ? '[]' : '' %>;
+<% }) -%>
+<% } -%>
+};
+<% } -%>
+<% }) -%>

@@ -1,0 +1,24 @@
+import {Sdk} from './Sdk';
+import {fetch, sdk_identity} from './types';
+import {envs, defaultEnv} from './config';
+
+export * from './Sdk';
+export {default as default} from './Sdk';
+
+export const createSdk = (restEndpoint: string, graphqlEndpoint: string, fetch: fetch, identity?: sdk_identity) =>
+    new Sdk({endpoints: {rest: restEndpoint, graphql: graphqlEndpoint}, fetch, identity})
+;
+
+export function createEnvSdk(env: string|undefined = undefined, localFetch: fetch|undefined = undefined, username?: string, password?: string) {
+    let globalFetch = require('cross-fetch');
+    const fetch = localFetch || globalFetch;
+    if (!fetch) throw new Error(`No fetch function available`);
+    env = env || process.env.<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_ENV || defaultEnv;
+    username = username || process.env.<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_USERNAME || undefined;
+    password = password || process.env.<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_PASSWORD || undefined;
+
+    const {rest, graphql} = envs[env || ''] || envs[defaultEnv];
+
+    return createSdk(rest, graphql, fetch as any, (username && password) ? {username, password} : undefined);
+}
+

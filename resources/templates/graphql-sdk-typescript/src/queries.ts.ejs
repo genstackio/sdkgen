@@ -1,0 +1,56 @@
+// noinspection JSUnusedGlobalSymbols
+
+<%
+
+const mutationQueries = Object.keys(Object.entries(queries).filter(([k, v]) => v.type === 'mutation').reduce((acc, [k, v]) => Object.assign(acc, {[k]: v}), {}));
+const queryQueries = Object.keys(Object.entries(queries).filter(([k, v]) => v.type === 'query').reduce((acc, [k, v]) => Object.assign(acc, {[k]: v}), {}));
+
+-%>
+// -- QUERIES -----------------------
+
+<% queryQueries.forEach(query => {
+
+const q = queries[query];
+const requiredArgs = (q.args || []).filter(arg => !!arg.required);
+const optionalArgs = (q.args || []).filter(arg => !arg.required);
+const hasRequiredArgs = !!requiredArgs.length;
+const hasOptionalArgs = !!optionalArgs.length;
+const requiredArgsString = requiredArgs.map(arg => `$${arg.name}: ${arg.list ? `[${arg.gqlType}]` : arg.gqlType}!`).join(', ');
+const requiredArgsDetailedString = requiredArgs.map(arg => `${arg.name}: $${arg.name}`).join(', ');
+const optionalArgsString = optionalArgs.map(arg => `$${arg.name}: ${arg.list ? `[${arg.gqlType}]` : arg.gqlType}`).join(', ');
+const optionalArgsDetailedString = optionalArgs.map(arg => `${arg.name}: $${arg.name}`).join(', ');
+const queryParamsString = (requiredArgsString || optionalArgsString) ? `(${requiredArgsString}${(hasOptionalArgs && hasRequiredArgs) ? ', ' : ''}${optionalArgsString})` : '';
+const queryQueryParamsString = (requiredArgsDetailedString || optionalArgsDetailedString) ? `(${requiredArgsDetailedString}${(hasOptionalArgs && hasRequiredArgs) ? ', ' : ''}${optionalArgsDetailedString})` : '';
+%>export const <%= q.name %> = `
+query<%= queryParamsString %> {
+    <%= q.name %><%= queryQueryParamsString %> {<% Object.keys(q.fields || {}).forEach(ff => { %>
+        <%= ff -%>
+<% }) %>
+    }
+}
+`;
+<% }) -%>
+// -- MUTATIONS ---------------------
+
+<% mutationQueries.forEach(query => {
+
+const q = queries[query];
+const requiredArgs = (q.args || []).filter(arg => !!arg.required);
+const optionalArgs = (q.args || []).filter(arg => !arg.required);
+const hasRequiredArgs = !!requiredArgs.length;
+const hasOptionalArgs = !!optionalArgs.length;
+const requiredArgsString = requiredArgs.map(arg => `$${arg.name}: ${arg.list ? `[${arg.gqlType}]` : arg.gqlType}!`).join(', ');
+const requiredArgsDetailedString = requiredArgs.map(arg => `${arg.name}: $${arg.name}`).join(', ');
+const optionalArgsString = optionalArgs.map(arg => `$${arg.name}: ${arg.list ? `[${arg.gqlType}]` : arg.gqlType}`).join(', ');
+const optionalArgsDetailedString = optionalArgs.map(arg => `${arg.name}: $${arg.name}`).join(', ');
+const queryParamsString = (requiredArgsString || optionalArgsString) ? `(${requiredArgsString}${(hasOptionalArgs && hasRequiredArgs) ? ', ' : ''}${optionalArgsString})` : '';
+const queryQueryParamsString = (requiredArgsDetailedString || optionalArgsDetailedString) ? `(${requiredArgsDetailedString}${(hasOptionalArgs && hasRequiredArgs) ? ', ' : ''}${optionalArgsDetailedString})` : '';
+%>export const <%= q.name %> = `
+mutation<%= queryParamsString %> {
+    <%= q.name %><%= queryQueryParamsString %> {<% Object.keys(q.fields || {}).forEach(ff => { %>
+        <%= ff -%>
+<% }) %>
+    }
+}
+`;
+<% }) -%>

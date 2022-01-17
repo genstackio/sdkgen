@@ -1,0 +1,46 @@
+// noinspection JSUnusedGlobalSymbols
+
+<%
+
+const typeNames = Object.entries(inputs).map(([k]) => k);
+const requiredExternalTypes = Object.keys(typeNames.reduce((acc, t) => {
+    return Object.values(inputs[t].fields || {}).reduce((acc2, f) => {
+        if (f.primitive) return acc2;
+        if (inputs[f.type]) return acc2;
+        acc2[f.type] = true;
+        return acc2;
+    }, acc);
+}, {}));
+requiredExternalTypes.sort();
+-%>
+<% if (requiredExternalTypes.length) { -%>
+import {
+<% requiredExternalTypes.forEach(ret => { -%>
+    <%= ret %>,
+<% }) -%>
+} from './model';
+
+<% } -%>
+
+-%>
+<% typeNames.forEach(type => {
+
+const t = inputs[type];
+const requiredFields = Object.entries(t.fields).filter(([n, field]) => !!field.required);
+const optionalFields = Object.entries(t.fields).filter(([n, field]) => !field.required);
+
+%>export type <%= t.name %> = {
+<% if (requiredFields.length > 0) { -%>
+    // required
+<% requiredFields.forEach(([n, field]) => { -%>
+    <%= n %><%= field.required ? '' : '?' %>: <%= field.type %><%- field.list ? '[]' : '' %>;
+<% }) -%>
+<% } -%>
+<% if (optionalFields.length > 0) { -%>
+    // optional
+<% optionalFields.forEach(([n, field]) => { -%>
+    <%= n %><%= field.required ? '' : '?' %>: <%= field.type %><%- field.list ? '[]' : '' %>;
+<% }) -%>
+<% } -%>
+};
+<% }) -%>

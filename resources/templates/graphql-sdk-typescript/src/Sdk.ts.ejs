@@ -1,0 +1,48 @@
+// noinspection JSUnusedGlobalSymbols
+
+import BaseSdk from './BaseSdk';
+import * as queries from './queries';
+
+import {
+<%
+var rms = Object.keys(requiredModels || {});
+rms.sort();
+
+rms.forEach(requiredModel => {
+const rm = requiredModels[requiredModel];
+%>    <%= rm.name %>,
+<% }) %>
+    sdk_config,
+} from "./types";
+
+export class Sdk extends BaseSdk {
+    constructor(config: Omit<sdk_config, 'queries'>) {
+        super({queries, ...config});
+    }
+<%
+var ms = Object.keys(methods || {});
+ms.sort()
+
+ms.forEach(method => {
+const m = methods[method];
+const argNames = (m.args || []).map(a => a.name);
+const requiredArgs = (m.args || []).filter(arg => !!arg.required);
+const optionalArgs = (m.args || []).filter(arg => !arg.required);
+const hasRequiredArgs = !!requiredArgs.length;
+const hasOptionalArgs = !!optionalArgs.length;
+const requiredArgsString = requiredArgs.map(arg => `${arg.name}: ${arg.type}`).join(', ');
+const optionalArgsString = optionalArgs.map(arg => `${arg.name}?: ${arg.type}`).join(', ');
+-%>
+    <%= m.async ? 'async ' : '' %><%= m.name %>(<%= `${requiredArgsString}${(hasOptionalArgs && hasRequiredArgs) ? ', ' : ''}${optionalArgsString}` -%>): <%- m.async ? 'Promise<' : '' %><%= m.returnType.type %><%- m.returnType.list ? '[]' : '' %><%- m.async ? '>' : '' %> {
+<% if ('mutation' === m.type) { -%>
+        return this.mutation('<%= m.name %>'<% if (argNames.length > 0) { %>, {<%= argNames.join(', ') %>}<% } %>);
+<% } else if ('query' === m.type) { -%>
+        return this.query('<%= m.name %>'<% if (argNames.length > 0) { %>, {<%= argNames.join(', ') %>}<% } %>);
+<% } else { -%>
+        return {};
+<% } -%>
+    }
+<% }) -%>
+}
+
+export default Sdk;
