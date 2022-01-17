@@ -7,7 +7,7 @@ module.exports = {
         "\\.(ttf|eot|svg)": "identity-obj-proxy",
         "^lodash-es$": "lodash"
     },
-    modulePathIgnorePatterns: ['./resources/*'],
+    modulePathIgnorePatterns: ['./resources/*', './generated/*'],
     testEnvironment: 'node',
     moduleFileExtensions: ['ts', 'js'],
     transform: {".ts$": "ts-jest"},
