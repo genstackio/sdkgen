@@ -1,6 +1,6 @@
 // noinspection JSUnusedGlobalSymbols
 
-import {fetch, queries, variables, sdk_identity, sdk_auth_tokens, non_empty_sdk_auth_tokens, sdk_options, sdk_config, auth_data} from './types';
+import {fetch, queries, selection, selections, variables, sdk_identity, sdk_auth_tokens, non_empty_sdk_auth_tokens, sdk_options, sdk_config, auth_data} from './types';
 import decodeJwt from 'jwt-decode';
 import debug from 'debug';
 
@@ -158,24 +158,44 @@ export abstract class BaseSdk {
 
         return (r?.data || {})[key];
     }
-    protected async mutation(queryKey: string, variables?: variables, dataKey?: string) {
-        return this.gqlResult(await this.graphqlMutation(this.queries[queryKey], variables), dataKey || queryKey);
+    protected async mutation(queryKey: string, variables?: variables, dataKey?: string, selections?: selections) {
+        return this.gqlResult(await this.graphqlMutation(this.buildQuery(this.queries, queryKey, selections), variables), dataKey || queryKey);
     }
-    protected async rawMutation(queryKey: string, variables?: variables, dataKey?: string) {
-        return this.gqlResult(await this.rawGraphqlMutation(this.queries[queryKey], variables), dataKey || queryKey);
+    protected async rawMutation(queryKey: string, variables?: variables, dataKey?: string, selections?: selections) {
+        return this.gqlResult(await this.rawGraphqlMutation(this.buildQuery(this.queries, queryKey, selections), variables), dataKey || queryKey);
     }
-    protected async queryAll(queryKey: string, variables?: variables, dataKey?: string) {
-        const fetcher = async (offset: string|undefined) => this.query(queryKey, {...(variables || {}), offset}, dataKey);
+    protected async queryAll(queryKey: string, variables?: variables, dataKey?: string, selections?: selections) {
+        const fetcher = async (offset: string|undefined) => this.query(queryKey, {...(variables || {}), offset}, dataKey, selections);
         const processor = async (page: {cursor?: string, count: number, items: any[]}, ctx) => {
             ctx.items = [...(ctx.items || []), ...page.items];
         }
         return (await this.processAllPages(fetcher, processor)).items || [];
     }
-    protected async query(queryKey: string, variables?: variables, dataKey?: string) {
-        return this.gqlResult(await this.graphqlQuery(this.queries[queryKey], variables), dataKey || queryKey);
+    protected async query(queryKey: string, variables?: variables, dataKey?: string, selections?: selections) {
+        return this.gqlResult(await this.graphqlQuery(this.buildQuery(this.queries, queryKey, selections), variables), dataKey || queryKey);
     }
-    protected async rawQuery(queryKey: string, variables?: variables, dataKey?: string) {
-        return this.gqlResult(await this.rawGraphqlQuery(this.queries[queryKey], variables), dataKey || queryKey);
+    protected async rawQuery(queryKey: string, variables?: variables, dataKey?: string, selections?: selections) {
+        return this.gqlResult(await this.rawGraphqlQuery(this.buildQuery(this.queries, queryKey, selections), variables), dataKey || queryKey);
+    }
+    protected buildQuery(queries: queries, queryKey: string, selections?: selections) {
+        const q = queries[queryKey];
+        if (!q) throw new Error(`Unknown query '${queryKey}', did you create it in the queries config file?`);
+        if ('string' === typeof q) return q;
+        let [query, defaultSelections = undefined]: [string, undefined|selections] = q;
+        return this.buildFinalQuery(query, this.buildFinalSelections(selections, defaultSelections));
+    }
+    protected buildFinalSelections(selections?: selections, defaultSelections?: selections) {
+        return ((!!selections && !!selections.length) ? (selections.includes('@') ? [...(defaultSelections || []), ...selections] : selections) : (defaultSelections || [])).filter(x => '@' !== x);
+    }
+    protected buildFinalQuery(query: string, selections: selections) {
+        return query.replace('@selections@', this.buildSelections(selections) || '__typename')
+    }
+    protected buildSelections(selections: selections) {
+        return selections.map((selection: selection) => {
+            if ('string' === typeof selection) return selection;
+            const [s1, s2] = selection;
+            return `${s1} { ${this.buildSelections(s2)} }`;
+        }).join(' ');
     }
     private async processAllPages(fetcher: Function, processor: Function): Promise<any> {
         let cursor = undefined;

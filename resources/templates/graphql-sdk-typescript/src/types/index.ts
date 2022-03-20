@@ -2,7 +2,7 @@ export * from './input';
 export * from './model';
 
 export type queries = {
-    [key: string]: string;
+    [key: string]: string|[string, selections];
 }
 
 export type variables = {
@@ -10,6 +10,9 @@ export type variables = {
 }
 
 export type fetch = (url: string, options: any) => Promise<{json: () => any}>;
+
+export type selection = string | [string, selections];
+export type selections = selection[];
 
 export type sdk_identity = undefined | non_empty_sdk_identity;
 

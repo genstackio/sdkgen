@@ -123,14 +123,11 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
         return def;
     }
     protected async buildSdkServiceDefinitionTypes(def: sdk_service_definition): Promise<void> {
-        def.types = this.sortObject(Object.entries(this.definition.schema.getTypeMap()).reduce((acc, [k, v]) => {
+        def.types = this.sortObject(Object.entries(this.definition.schema.getTypeMap()).reduce((acc, [k, type]) => {
             acc[k] = {
-                ...this.convertGraphQLTypeToType(v as any),
+                ...this.convertGraphQLTypeToType(type as any),
                 name: k,
-                fields: this.sortObject(Object.entries((v as any)._fields || {}).reduce((acc2, [kk, vv]) => {
-                    acc2[kk] = {...this.convertGraphQLTypeToField((vv as any).type), name: kk};
-                    return acc2;
-                }, {} as sdk_service_definition_type_fields)),
+                fields: this.convertGraphQLTypeFields((type as any)._fields),
             };
             return acc;
         }, {} as sdk_service_definition_types));
@@ -140,14 +137,14 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
             'BigInt', 'Boolean', 'Int', 'String', 'Float', 'ID',
         ].reduce((acc, k) => Object.assign(acc, {[k]: true}), {} as sdk_service_definition_ignored_models);
         def.models = this.sortObject(Object.entries(this.definition.schema.getTypeMap()).reduce((acc, [k]) => {
-            if (/Input$/.test(k)) return acc;
+            if (/^.+Input$/.test(k)) return acc;
             acc[k] = def.types![k];
             return acc;
         }, {} as sdk_service_definition_models));
     }
     protected async buildSdkServiceDefinitionInputs(def: sdk_service_definition): Promise<void> {
         def.inputs = this.sortObject(Object.entries(this.definition.schema.getTypeMap()).reduce((acc, [k]) => {
-            if (!/Input$/.test(k)) return acc;
+            if (!/^.+Input$/.test(k)) return acc;
             acc[k] = def.types![k]
             return acc;
         }, {} as sdk_service_definition_inputs));
@@ -160,16 +157,13 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
         await this.buildSdkServiceDefinitionQueryQueries(def);
         await this.buildSdkServiceDefinitionMutationQueries(def);
     }
-    protected async buildSdkServiceDefinitionQueryQueries(def: sdk_service_definition): Promise<void> {
+    protected async buildSdkServiceDefinitionMutationQueries(def: sdk_service_definition): Promise<void> {
         Object.entries(this.definition.schema.getMutationType()._fields).reduce((acc, [name, type]: [string, any]) => {
             def.queries![name] = {
                 name,
                 type: 'mutation',
                 args: (type.args || []).map(arg => ({name: arg.name, ...this.convertGraphQLTypeToArg(arg.type)})),
-                fields: this.sortObject(Object.entries((type as any).type._fields || {}).reduce((acc2, [kk, vv]) => {
-                    acc2[kk] = {...this.convertGraphQLTypeToField((vv as any).type), name: kk};
-                    return acc2;
-                }, {} as sdk_service_definition_query_fields)),
+                fields: this.convertGraphQLTypeFields((type as any).type._fields),
             };
             def.methods![name] = {
                 name,
@@ -189,16 +183,13 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
             return acc;
         }, def);
     }
-    protected async buildSdkServiceDefinitionMutationQueries(def: sdk_service_definition): Promise<void> {
+    protected async buildSdkServiceDefinitionQueryQueries(def: sdk_service_definition): Promise<void> {
         Object.entries(this.definition.schema.getQueryType()._fields).reduce((acc, [name, type]: [string, any]) => {
             def.queries![name] = {
                 name,
                 type: 'query',
                 args: (type.args || []).map(arg => ({name: arg.name, ...this.convertGraphQLTypeToArg(arg.type)})),
-                fields: this.sortObject(Object.entries((type as any).type._fields || {}).reduce((acc2, [kk, vv]) => {
-                    acc2[kk] = {...this.convertGraphQLTypeToField((vv as any).type), name: kk};
-                    return acc2;
-                }, {} as sdk_service_definition_query_fields)),
+                fields: this.convertGraphQLTypeFields((type as any).type._fields),
             };
             def.methods![name] = {
                 name,
@@ -222,6 +213,12 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
         const keys = Object.keys(o);
         keys.sort();
         return keys.reduce((acc, n) => Object.assign(acc, {[n]: o[n]}), {});
+    }
+    protected convertGraphQLTypeFields(types: {[key: string]: any}): sdk_service_definition_type_fields {
+        return this.sortObject(Object.entries(types || {}).reduce((acc2, [kk, vv]) => {
+            acc2[kk] = {...this.convertGraphQLTypeToField((vv as any).type), name: kk};
+            return acc2;
+        }, {} as sdk_service_definition_query_fields))
     }
     protected convertGraphQLTypeToField(type: GraphQLType): Omit<sdk_service_definition_type_field, 'name'> {
         return this.convertGraphQLType(type);
@@ -272,7 +269,7 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
         return {type: type.name, values: type.getValues().map(v => v.value), gqlType: type.name};
     }
     buildObjectTypeMapping(type: GraphQLObjectType): sdk_service_type {
-        return {type: type.name, gqlType: type.name};
+        return {type: type.name, gqlType: type.name, ...((type as any)._fields.length ? {fields: this.convertGraphQLTypeFields((type as any)._fields)} : {})};
     }
     buildInputObjectTypeMapping(type: GraphQLInputObjectType): sdk_service_type {
         return {type: type.name, gqlType: type.name};
