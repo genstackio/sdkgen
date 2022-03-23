@@ -245,7 +245,9 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
             case type instanceof GraphQLNonNull:
                 return {...this.convertGraphQLType((type as GraphQLNonNull<any>).ofType), required: true};
             case type instanceof GraphQLList:
-                return {...this.convertGraphQLType((type as GraphQLNonNull<any>).ofType), list: true};
+                const xxx: any = this.convertGraphQLType((type as GraphQLList<any>).ofType);
+                xxx.required && (xxx.subRequired = true);
+                return {...xxx, list: true};
             default:
                 console.log(`warning: unknown graphql custom type '${(type as any).name}'`);
                 return {type: (type as any).name, gqlType: (type as any).name};
