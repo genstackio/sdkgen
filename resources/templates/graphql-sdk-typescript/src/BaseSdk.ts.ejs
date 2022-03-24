@@ -194,7 +194,7 @@ export abstract class BaseSdk {
         return selections.map((selection: selection) => {
             if ('string' === typeof selection) return selection;
             const [s1, s2] = selection;
-            return `${s1} { ${this.buildSelections(s2)} }`;
+            return `${s1} { ${this.buildSelections(s2 || [] as selections)} }`;
         }).join(' ');
     }
     private async processAllPages(fetcher: Function, processor: Function): Promise<any> {
