@@ -17,7 +17,10 @@ export function createEnvSdk(env: string|undefined = undefined, localFetch: fetc
     username = username || process.env.<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_USERNAME || undefined;
     password = password || process.env.<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_PASSWORD || undefined;
 
-    const {rest, graphql} = envs[env || ''] || envs[defaultEnv];
+    let {rest, graphql} = envs[env || ''] || envs[defaultEnv];
+
+    rest = (rest || '').replace('{{source}}', env);
+    graphql = (graphql || '').replace('{{source}}', env);
 
     return createSdk(rest, graphql, fetch as any, (username && password) ? {username, password} : undefined);
 }
