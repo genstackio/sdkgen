@@ -35,6 +35,7 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
             ...(await this.buildVars()),
             ...serviceDef,
         }
+        vars['repoType'] = vars['repoType'] || 'default';
         const r = ({render}) => render(vars);
         return {
             'src/index.ts': r,
@@ -47,6 +48,8 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
             'LICENSE.md': r,
             'package.json': r,
             'README.md': r,
+            'tsconfig.json': r,
+            '.nvmrc': r,
         };
     }
     protected async buildVars(): Promise<{[key: string]: any}> {
@@ -67,7 +70,20 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
         return {
         };
     }
-    protected async buildPackageJsonModel({packageName, packageVersion, packageDescription, repository, publishConfig, dependencies = {}, peerDependencies = {}, devDependencies = {}}: any): Promise<any> {
+    protected async buildPackageJsonModel({packageName, packageVersion, packageDescription, repository, publishConfig, dependencies = {}, peerDependencies = {}, devDependencies = {}, repoType = 'default'}: any): Promise<any> {
+        const scripts = {
+            default: {
+                "build": "tsc",
+                "test": "../../node_modules/.bin/jest -c ../../jest.config.js --rootDir=`pwd`"
+            },
+            standalone: {
+                "preversion": "yarn test",
+                "version": "yarn --silent build && git add -A .",
+                "postversion": "git push && git push --tags",
+                "build": "tsc",
+                "test": "jest --config jest.config.js"
+            }
+        };
         return {
             "name": packageName,
             "version": packageVersion,
@@ -84,25 +100,28 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
             ],
             "repository": repository,
             "publishConfig": ('string' === typeof publishConfig) ? (('github' === publishConfig) ? {access: 'restricted', registry: 'https://npm.pkg.github.com/'} : undefined) : publishConfig,
-            "scripts": {
-                "build": "tsc",
-                "test": "../../node_modules/.bin/jest -c ../../jest.config.js --rootDir=`pwd`"
-            },
+            "scripts": scripts[repoType || 'default'] || scripts['default'],
             "dependencies": {
                 "jwt-decode": "^3.1.2",
                 ...dependencies,
             },
             "peerDependencies": {
-                "cross-fetch": "^3.1.4",
+                "cross-fetch": "^3.1.5",
                 ...peerDependencies,
             },
             "devDependencies": {
-                "@babel/core": "^7.15.5",
-                "@babel/preset-env": "^7.15.6",
-                "@babel/preset-typescript": "^7.15.0",
-                "babel-loader": "^8.2.2",
-                "cross-fetch": "^3.1.4",
-                "source-map-loader": "^3.0.0",
+                "@babel/core": "^7.18.10",
+                "@babel/preset-env": "^7.18.10",
+                "@babel/preset-typescript": "^7.18.6",
+                "babel-loader": "^8.2.5",
+                "cross-fetch": "^3.1.5",
+                "source-map-loader": "^4.0.0",
+                "jest": "^28.1.3",
+                "typescript": "^4.7.4",
+                "@types/node": "^16.11.51",
+                "@types/jest": "^28.1.7",
+                "ts-jest": "^28.0.8",
+                "webpack": "^5.74.0",
                 ...devDependencies,
             }
         }
@@ -110,7 +129,6 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
     protected async buildStaticFilesFromStaticTemplates(): Promise<{[key: string]: string|true}> {
         return {
             'src/types/index.ts': true,
-            'tsconfig.json': true,
             '__tests__/index.spec.ts': true,
         };
     }
@@ -135,6 +153,14 @@ export abstract class AbstractTypescriptSdkGraphQLSourceCodeGenerator extends Ab
     protected async buildSdkServiceDefinitionModels(def: sdk_service_definition): Promise<void> {
         def.ignoredModels = [
             'BigInt', 'Boolean', 'Int', 'String', 'Float', 'ID',
+            'Date', 'Time', 'DateTime', 'Timestamp', 'UtcOffset', 'Duration',
+            'ISO8601Duration', 'LocalDate', 'LocalTime', 'LocalEndTime', 'EmailAddress',
+            'NegativeFloat', 'NegativeInt', 'NonEmptyString', 'NonNegativeFloat', 'NonNegativeInt',
+            'NonPositiveFloat', 'NonPositiveInt', 'PhoneNumber', 'PositiveFloat', 'PositiveInt', 'PostalCode',
+            'UnsignedFloat', 'UnsignedInt', 'URL', 'Byte', 'Long', 'SafeInt', 'UUID', 'GUID', 'Hexadecimal',
+            'HexColorCode', 'HSL', 'HSLA', 'IPv4', 'IPv6', 'ISBN', 'JWT', 'Latitude', 'Longitude', 'MAC', 'Port',
+            'RGB', 'RGBA', 'USCurrency', 'Currency', 'JSON', 'JSONObject', 'IBAN', 'ObjectID', 'Void', 'DID',
+            'TimeZone', 'CountryCode', 'Locale', 'RoutingNumber', 'AccountNumber', 'Cuid', 'Upload',
         ].reduce((acc, k) => Object.assign(acc, {[k]: true}), {} as sdk_service_definition_ignored_models);
         def.models = this.sortObject(Object.entries(this.definition.schema.getTypeMap()).reduce((acc, [k]) => {
             if (/^.+Input$/.test(k)) return acc;

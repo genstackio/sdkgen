@@ -91,12 +91,15 @@ export abstract class BaseSdk {
         debugSdkTokens('cleaned');
         return this;
     }
-    protected async request(service, method: string, uri: string|undefined = undefined, body: any|undefined = undefined) {
+    protected async request(service, method: string, uri: string|undefined = undefined, body: any|undefined = undefined, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = undefined) {
         await this.prepareAuthTokens();
-        return this.http(service, method, uri, body, this.tokens?.accessToken ? {Authorization: `bearer ${this.tokens!.accessToken}`} : {});
+        return this.http(service, method, uri, body, {...(headers ? headers : {}), ...(this.tokens?.accessToken ? {Authorization: `bearer ${this.tokens!.accessToken}`} : {})}, allowedStatusCodes);
     }
-    protected async http(service, method: string, uri: string|undefined = undefined, body: any|undefined = undefined, headers: any|undefined = {}) {
-        debugSdkHttp('fetch %s %s %s %j %j', service, method, uri, body, headers);
+    protected isAllowedStatusCodes(status, expected: number[]) {
+        return expected.includes(status);
+    }
+    protected async http(service, method: string, uri: string|undefined = undefined, body: any|undefined = undefined, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = undefined) {
+        debugSdkHttp('fetch > service: %s, method: %s, uri: %s, body: %j, headers: %j, allowedStatusCode: %j', service, method, uri, body, headers, allowedStatusCodes);
         const res = await this.fetch(`${this.endpoints[service]}${uri || ''}`, {
             method,
             headers: {
@@ -107,31 +110,42 @@ export abstract class BaseSdk {
             },
             body: body && JSON.stringify(body)
         });
+        if (!!allowedStatusCodes && !!allowedStatusCodes.length && !this.isAllowedStatusCodes(res.status, allowedStatusCodes)) {
+            let details: any = undefined;
+            try {
+                details = await res.json();
+            } catch (e) {
+                details = 'content is not valid json';
+            }
+            debugSdkHttp('response code unauthorized %d, content: %j', res.status, details);
+            throw new Error(`${service} API responded with an unauthorized status code (expected: ${JSON.stringify(allowedStatusCodes)}, actual: ${res.status}) and content: ${details}`);
+        }
+
         const r = await res.json();
         debugSdkHttp('result %j', r);
         return r;
     }
-    protected async graphqlQuery(query: string, variables: any = {}) {
+    protected async graphqlQuery(query: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200]) {
         debugSdkGraphqlQuery('request %s %j', query, variables);
-        const r = await this.request('graphql', 'post', undefined, {query, variables});
+        const r = await this.request('graphql', 'post', undefined, {query, variables}, headers, allowedStatusCodes);
         debugSdkGraphqlQuery('result %j', r);
         return r;
     }
-    protected async rawGraphqlQuery(query: string, variables: any = {}) {
+    protected async rawGraphqlQuery(query: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200]) {
         debugSdkGraphqlQuery('raw request %s %j', query, variables);
-        const r = await this.http('graphql', 'post', undefined, {query, variables});
+        const r = await this.http('graphql', 'post', undefined, {query, variables}, headers, allowedStatusCodes);
         debugSdkGraphqlQuery('result %j', r);
         return r;
     }
-    protected async graphqlMutation(mutation: string, variables: any = {}) {
+    protected async graphqlMutation(mutation: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200]) {
         debugSdkGraphqlMutation('request %s %j', mutation, variables);
-        const r = await this.request('graphql', 'post', undefined, {query: mutation, variables});
+        const r = await this.request('graphql', 'post', undefined, {query: mutation, variables}, headers, allowedStatusCodes);
         debugSdkGraphqlMutation('result %j', r);
         return r;
     }
-    protected async rawGraphqlMutation(mutation: string, variables: any = {}) {
+    protected async rawGraphqlMutation(mutation: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200]) {
         debugSdkGraphqlMutation('raw request %s %j', mutation, variables);
-        const r = await this.http('graphql', 'post', undefined, {query: mutation, variables});
+        const r = await this.http('graphql', 'post', undefined, {query: mutation, variables}, headers, allowedStatusCodes);
         debugSdkGraphqlMutation('result %j', r);
         return r;
     }
