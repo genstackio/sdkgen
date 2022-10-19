@@ -18,6 +18,9 @@ clean-modules: ## Remove Javascript dependencies directory
 install: ## Install the Javascript dependencies
 	@yarn --silent install
 
+pr:
+	@hub pull-request -b main
+
 publish: clean-lib
 	@npm version $(s) -m "feat: %s" -f
 	@npm publish

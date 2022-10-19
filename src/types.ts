@@ -52,12 +52,14 @@ export type sdk_service_definition_models = {
 }
 export type sdk_service_definition_model = {
     name: string;
+    fields?: sdk_service_definition_type_fields;
 }
 export type sdk_service_definition_inputs = {
     [key: string]: sdk_service_definition_input;
 }
 export type sdk_service_definition_input = {
     name: string;
+    fields?: sdk_service_definition_type_fields;
 }
 export type sdk_service_definition_queries = {
     [key: string]: sdk_service_definition_query;

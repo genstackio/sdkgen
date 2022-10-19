@@ -1,5 +1,6 @@
 import {generate} from '../utils/generate';
 import GenericTypescriptSdkGraphQLSourceCodeGenerator from "../GenericTypescriptSdkGraphQLSourceCodeGenerator";
+import GenericGoSdkGraphQLSourceCodeGenerator from "../GenericgoSdkGraphQLSourceCodeGenerator";
 
 export const command = ['generate', '$0'];
 
@@ -24,6 +25,8 @@ export const handler = async argv => {
         target: argv.target,
         availableCodeGenerators: {
             default: GenericTypescriptSdkGraphQLSourceCodeGenerator,
+            default__typescript: GenericTypescriptSdkGraphQLSourceCodeGenerator,
+            default__go: GenericGoSdkGraphQLSourceCodeGenerator,
         }
     });
 }

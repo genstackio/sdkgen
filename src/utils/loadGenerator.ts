@@ -3,10 +3,19 @@ import ICodeGenerator from "../ICodeGenerator";
 
 export async function loadGenerator(options: code_generator_options): Promise<ICodeGenerator> {
     const {template, language, availableCodeGenerators = {}} = options;
-    const name = `${template}--${language}`.replace(/-/g, '_');
-    const g = availableCodeGenerators[name] || availableCodeGenerators['default'];
 
-    if (!g) throw new Error(`Unknown code generator '${template}' for language '${language}'`);
+    const tries = [
+        `${template}--${language}`.replace(/-/g, '_'),
+        `default--${language}`.replace(/-/g, '_'),
+        `${template}--default`.replace(/-/g, '_'),
+        'default',
+    ];
+
+    const name = tries.find((k: string) => !!availableCodeGenerators[k]);
+
+    if (!name) throw new Error(`Unknown code generator '${template}' for language '${language}'`);
+
+    const g = availableCodeGenerators[name];
 
     const generator = new g(options);
 
