@@ -9,7 +9,7 @@ export type variables = {
     [key: string]: any;
 }
 
-export type fetch = (url: string, options: any) => Promise<{json: () => any, status: number}>;
+export type fetch = (url: string, options: any) => Promise<{json: () => Promise<any>, status: number, text: () => Promise<any>}>;
 
 export type selection = string | [string, selections];
 export type selections = selection[];
