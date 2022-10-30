@@ -113,9 +113,13 @@ export abstract class BaseSdk {
         if (!!allowedStatusCodes && !!allowedStatusCodes.length && !this.isAllowedStatusCodes(res.status, allowedStatusCodes)) {
             let details: any = undefined;
             try {
-                details = await res.json();
-            } catch (e) {
-                details = 'content is not valid json';
+                details = JSON.stringify(await res.json());
+            } catch (e: any) {
+                try {
+                    details = `content is not valid json: ${await res.text()}`;
+                } catch (e2: any) {
+                    details = 'content is not valid json (unable to fetch content as text)';
+                }
             }
             debugSdkHttp('response code unauthorized %d, content: %j', res.status, details);
             throw new Error(`${service} API responded with an unauthorized status code (expected: ${JSON.stringify(allowedStatusCodes)}, actual: ${res.status}) and content: ${details}`);
