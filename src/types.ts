@@ -107,6 +107,8 @@ export type sdk_service_type = {
     primitive?: boolean;
     values?: any[];
     gqlType: string;
+    unknown?: boolean;
+    types?: sdk_service_type[];
 }
 
 export type sdk_service_definition_method_args = {

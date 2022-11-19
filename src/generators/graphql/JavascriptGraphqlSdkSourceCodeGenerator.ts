@@ -88,6 +88,23 @@ export class JavascriptGraphqlSdkSourceCodeGenerator extends AbstractGraphQLSdkS
             '__tests__/index.test.js': true,
         };
     }
+    mapTypeName(name: string) {
+        switch (name) {
+            case 'string': return name;
+            case 'boolean': return name;
+            case 'unknown': return name;
+            case 'float': return 'number';
+            case 'int': return 'number';
+            case 'long': return 'number';
+            case 'bigint': return 'number';
+            case 'byte': return 'any';
+            case 'json': return 'any';
+            case 'object': return 'any';
+            case 'null': return 'null';
+            case 'timestamp': return 'number';
+            default: return name;
+        }
+    }
 }
 
 // noinspection JSUnusedGlobalSymbols

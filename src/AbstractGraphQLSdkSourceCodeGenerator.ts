@@ -24,7 +24,8 @@ import {
     GraphQLNonNull,
     GraphQLObjectType,
     GraphQLScalarType,
-    GraphQLType
+    GraphQLType,
+    GraphQLUnionType,
 } from "graphql";
 
 export abstract class AbstractGraphQLSdkSourceCodeGenerator extends AbstractCodeGenerator {
@@ -230,6 +231,8 @@ export abstract class AbstractGraphQLSdkSourceCodeGenerator extends AbstractCode
                 return this.buildPrimitiveTypeMapping(type as GraphQLScalarType);
             case type instanceof GraphQLEnumType:
                 return this.buildEnumTypeMapping(type as GraphQLEnumType);
+            case type instanceof GraphQLUnionType:
+                return this.buildUnionTypeMapping(type as GraphQLUnionType);
             case type instanceof GraphQLObjectType:
                 return this.buildObjectTypeMapping(type as GraphQLObjectType);
             case type instanceof GraphQLInputObjectType:
@@ -247,23 +250,90 @@ export abstract class AbstractGraphQLSdkSourceCodeGenerator extends AbstractCode
     }
     getPrimitiveTypeMapping() {
         return {
-            Int: 'number',
+            Int: 'int',
             String: 'string',
-            BigInt: 'number',
+            BigInt: 'bigint',
             Boolean: 'boolean',
-            Float: 'number',
+            Float: 'float',
             ID: 'string',
             unknown: 'unknown',
+
+            // graphql-scalars
+            AccountNumber: 'string',
+            Byte: 'byte',
+            CountryCode: 'string',
+            Currency: 'string',
+            Cuid: 'string',
+            Date: 'string',
+            DateTime: 'string',
+            DID: 'string',
+            Duration: 'string',
+            EmailAddress: 'string',
+            GUID: 'string',
+            Hexadecimal: 'string',
+            HexColorCode: 'string',
+            HSL: 'string',
+            HSLA: 'string',
+            IBAN: 'string',
+            ISBN: 'string',
+            IPv4: 'string',
+            IPv6: 'string',
+            ISO8601Duration: 'string',
+            JSON: 'json',
+            JSONObject: 'object',
+            JWT: 'string',
+            Latitude: 'float',
+            LocalDate: 'string',
+            Locale: 'string',
+            LocalEndTime: 'string',
+            LocalTime: 'string',
+            Long: 'long',
+            Longitude: 'float',
+            MAC: 'string',
+            NegativeInt: 'int',
+            NegativeFloat: 'float',
+            NonEmptyString: 'string',
+            NonNegativeInt: 'int',
+            NonNegativeFloat: 'float',
+            NonPositiveInt: 'int',
+            NonPositiveFloat: 'float',
+            ObjectID: 'string',
+            PhoneNumber: 'string',
+            Port: 'int',
+            PositiveInt: 'int',
+            PositiveFloat: 'float',
+            PostalCode: 'string',
+            RGB: 'string',
+            RGBA: 'string',
+            RoutingNumber: 'string',
+            SafeInt: 'int',
+            Time: 'string',
+            Timestamp: 'timestamp',
+            TimeZone: 'string',
+            UnsignedInt: 'int',
+            UnsignedFloat: 'float',
+            URL: 'any',
+            USCurrency: 'string',
+            UtcOffset: 'string',
+            UUID: 'string',
+            Upload: 'any',
+            Void: 'null',
         };
+    }
+    mapTypeName(name: string) {
+        return name;
     }
     buildPrimitiveTypeMapping(type: GraphQLScalarType): sdk_service_type {
         const mapping = this.getPrimitiveTypeMapping();
-        if (mapping[type.name]) return {type: mapping[type.name], primitive: true, gqlType: type.name};
+        if (mapping[type.name]) return {type: this.mapTypeName(mapping[type.name]), primitive: true, gqlType: type.name};
         console.warn(`unknown graphql scalar type '${(type as any).name}'`);
-        return {type: mapping['unknown'], primitive: true, gqlType: type.name};
+        return {type: this.mapTypeName(mapping['unknown']), primitive: true, gqlType: type.name, unknown: true};
     }
     buildEnumTypeMapping(type: GraphQLEnumType): sdk_service_type {
         return {type: type.name, values: type.getValues().map(v => v.value), gqlType: type.name};
+    }
+    buildUnionTypeMapping(type: GraphQLUnionType): sdk_service_type {
+        return {type: type.name, types: type.getTypes().map(t => this.convertGraphQLType(t)), gqlType: type.name};
     }
     buildObjectTypeMapping(type: GraphQLObjectType): sdk_service_type {
         return {type: type.name, gqlType: type.name, ...((type as any)._fields.length ? {fields: this.convertGraphQLTypeFields((type as any)._fields)} : {})};

@@ -120,14 +120,14 @@ ${queries.map(([_, q]) => {
             Boolean: 'bool',
             Float: 'float64',
             ID: 'string',
-            unknown: 'unknown',
+            unknown: 'interface{}',
         }
-        if (f.primitive) return primitives[f.gqlType]
+        if (f.primitive) return primitives[f.gqlType] || primitives['unknown'];
         if (f.list) return `[]${f.gqlType}`
         return f.gqlType
     }
     protected buildSdkArgs(o) {
-        return `${Object.entries(o || {}).map(([_, f]: any[]) => `${f.name} ${this.buildFieldTypes(f)}`).join(", ")}`;
+        return `${Object.entries(o || {}).map(([_, f]: any[]) => `${f.name === 'type' ? 'typeName' : f.name} ${this.buildFieldTypes(f)}`).join(", ")}`;
     }
     protected sortQueries(q: sdk_service_definition_queries) {
         return Object.entries(q || {}).sort(([aS, a], [_, b]) => b.type.localeCompare(a.type) || a.name.localeCompare(b.name))

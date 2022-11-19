@@ -43,7 +43,12 @@ const t = models[type];
 let requiredFields = Object.entries(t.fields).filter(([n, field]) => !!field.required);
 let optionalFields = Object.entries(t.fields).filter(([n, field]) => !field.required);
 
-%>export type <%= t.name %> = <% if (t.values) { %><%- t.values.map(vvv => JSON.stringify(vvv)).join(' | ') %>;
+%>export type <%= t.name %> = <% if (t.types && t.types.length) {
+
+const xx = t.types.map(x => x.type);
+xx.sort();
+%><%- xx.join(' | ') %>;
+<% } else { %><% if (t.values) { %><%- t.values.map(vvv => JSON.stringify(vvv)).join(' | ') %>;
 <%} else { %>{
 <% if (requiredFields.length > 0) { -%>
     // required
@@ -58,5 +63,5 @@ let optionalFields = Object.entries(t.fields).filter(([n, field]) => !field.requ
 <% }) -%>
 <% } -%>
 };
-<% } -%>
+<% }} -%>
 <% }) -%>
