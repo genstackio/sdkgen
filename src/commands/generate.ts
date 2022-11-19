@@ -1,6 +1,5 @@
 import {generate} from '../utils/generate';
-import GenericTypescriptSdkGraphQLSourceCodeGenerator from "../GenericTypescriptSdkGraphQLSourceCodeGenerator";
-import GenericGoSdkGraphQLSourceCodeGenerator from "../GenericgoSdkGraphQLSourceCodeGenerator";
+import buildAvailableGenerators from "../utils/buildAvailableGenerators";
 
 export const command = ['generate', '$0'];
 
@@ -23,10 +22,16 @@ export const handler = async argv => {
         config: ('string' === typeof argv.config) ? argv.config.replace('<target>', argv.target) : argv.config,
         source: argv.env,
         target: argv.target,
-        availableCodeGenerators: {
-            default: GenericTypescriptSdkGraphQLSourceCodeGenerator,
-            default__typescript: GenericTypescriptSdkGraphQLSourceCodeGenerator,
-            default__go: GenericGoSdkGraphQLSourceCodeGenerator,
-        }
+        availableCodeGenerators: buildAvailableGenerators(
+            {
+                graphql: [
+                    'cpp', 'csharp', 'go', 'java', 'javascript', 'kotlin', 'php', 'python', 'ruby', 'rust',
+                    'swift', 'typescript', 'scala', 'objc', 'dart', 'lua', 'r', 'elixir', 'haskell', 'erlang',
+                ],
+            },
+            {
+                graphql: 'typescript',
+            },
+        )
     });
 }

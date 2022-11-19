@@ -1,0 +1,229 @@
+// noinspection JSUnusedGlobalSymbols
+
+const decodeJwt = require('jwt-decode');
+const debug = require('debug');
+
+const debugSdk = debug('<%= ('undefined' === typeof sdkDebugPrefix) ? 'sdk' : sdkDebugPrefix %>');
+const debugSdkIdentity = debug('<%= ('undefined' === typeof sdkDebugPrefix) ? 'sdk' : sdkDebugPrefix %>:identity');
+const debugSdkTokens = debug('<%= ('undefined' === typeof sdkDebugPrefix) ? 'sdk' : sdkDebugPrefix %>:tokens');
+const debugSdkHttp = debug('<%= ('undefined' === typeof sdkDebugPrefix) ? 'sdk' : sdkDebugPrefix %>:http');
+const debugSdkGraphqlQuery = debug('<%= ('undefined' === typeof sdkDebugPrefix) ? 'sdk' : sdkDebugPrefix %>:gql:query');
+const debugSdkGraphqlMutation = debug('<%= ('undefined' === typeof sdkDebugPrefix) ? 'sdk' : sdkDebugPrefix %>:gql:mutation');
+
+const defaultOptions = {
+    minExpirationDelay: 2,
+};
+
+abstract class BaseSdk {
+    var endpoints;
+    var fetch;
+    var identity;
+    var tokens;
+    var queries;
+    var options;
+    protected constructor({endpoints, fetch, identity, queries, options = {}}) {
+        this.endpoints = endpoints;
+        this.fetch = fetch;
+        this.queries = queries;
+        this.options = {...defaultOptions, ...options};
+        this.setIdentity(identity);
+        debugSdk('instantiate %j', this);
+    }
+    public setIdentity(identity) {
+        this.identity = !!identity ? {username: identity.username, password: identity.password} : undefined;
+        if (!this.identity) this.cleanAuthTokens();
+        debugSdkIdentity('identity %j', this.identity);
+        return this;
+    }
+    async getAuthData() {
+        await this.prepareAuthTokens();
+        return this.tokens?.accessToken ? this.decodeToken(this.tokens!.accessToken) : undefined;
+    }
+    protected getIdentity() {
+        return this.identity;
+    }
+    protected isIdentitifed() {
+        return !!this.identity && !!this.identity!.username;
+    }
+    protected async prepareAuthTokens() {
+        if (!this.isIdentitifed()) return;
+        if (this.isAccessTokenValid()) return;
+        return this.refreshAccessToken();
+    }
+    protected isAccessTokenValid() {
+        if (!this.tokens?.accessToken) return false;
+        return !this.isTokenExpired(this.tokens!.accessToken);
+    }
+    protected async refreshAccessToken() {
+        debugSdkTokens('refresh');
+        if (this.isTokenExpired(this.tokens?.refreshToken)) return this.setTokens(await this.createAuthTokensFromIdentity(this.getIdentity()));
+        return this.setTokens(await this.createAuthTokensFromRefreshToken(this.tokens!.refreshToken));
+    }
+    protected isTokenExpired(token = undefined) {
+        if (!token) return true;
+        const decodedToken = this.decodeToken(token);
+        const now = Math.floor(Date.now() / 1000);
+        return ((decodedToken || {}).exp - now) < ((this.options.minExpirationDelay as number) || 1);
+    }
+    protected decodeToken(token) {
+        const x = decodeJwt(token);
+        debugSdkTokens('decoded %j (from %s)', x, token);
+        return x;
+    }
+    protected setTokens(tokens) {
+        debugSdkTokens('tokens %j', tokens)
+        this.tokens = tokens;
+        return this;
+    }
+    protected async createAuthTokensFromIdentity(identity) {
+        if (!identity) throw new Error(`Empty identity, please set identity first`);
+        const {token, refreshToken} = await this.rawMutation('createAuthToken', {data: {username: identity.username, password: identity.password}});
+        return {accessToken: token, refreshToken};
+    }
+    protected async createAuthTokensFromRefreshToken(refreshToken = undefined) {
+        if (!refreshToken) throw new Error(`Empty refresh token, please reset tokens`);
+        const {token, refreshToken: newRefreshToken} = await this.rawMutation('refreshAuthToken', {data: {refreshToken}});
+        return {accessToken: token, refreshToken: newRefreshToken};
+    }
+    protected cleanAuthTokens() {
+        this.tokens = undefined;
+        debugSdkTokens('cleaned');
+        return this;
+    }
+    protected async request(service, method, uri = undefined, body = undefined, headers = undefined, allowedStatusCodes = undefined) {
+        await this.prepareAuthTokens();
+        return this.http(service, method, uri, body, {...(headers ? headers : {}), ...(this.tokens?.accessToken ? {Authorization: `bearer ${this.tokens!.accessToken}`} : {})}, allowedStatusCodes);
+    }
+    protected isAllowedStatusCodes(status, expected = []) {
+        return expected.includes(status);
+    }
+    protected async http(service, method, uri = undefined, body = undefined, headers = undefined, allowedStatusCodes = undefined) {
+        debugSdkHttp('fetch > service: %s, method: %s, uri: %s, body: %j, headers: %j, allowedStatusCode: %j', service, method, uri, body, headers, allowedStatusCodes);
+        const res = await this.fetch(`${this.endpoints[service]}${uri || ''}`, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'User-Agent': '<%= ('undefined' === typeof userAgent) ? `${companyName.toLowerCase().replace(/[a-z0-9]+/, '_')}-graphql-typescript-sdk` : userAgent %>',
+                ...(headers || {})
+            },
+            body: body && JSON.stringify(body)
+        });
+        if (!!allowedStatusCodes && !!allowedStatusCodes.length && !this.isAllowedStatusCodes(res.status, allowedStatusCodes)) {
+            let details = undefined;
+            try {
+                details = JSON.stringify(await res.json());
+            } catch (e) {
+                try {
+                    details = `content is not valid json: ${await res.text()}`;
+                } catch (e2) {
+                    details = 'content is not valid json (unable to fetch content as text)';
+                }
+            }
+            debugSdkHttp('response code unauthorized %d, content: %j', res.status, details);
+            throw new Error(`${service} API responded with an unauthorized status code (expected: ${JSON.stringify(allowedStatusCodes)}, actual: ${res.status}) and content: ${details}`);
+        }
+
+        const r = await res.json();
+        debugSdkHttp('result %j', r);
+        return r;
+    }
+    protected async graphqlQuery(query, variables = {}, headers = undefined, allowedStatusCodes = [200]) {
+        debugSdkGraphqlQuery('request %s %j', query, variables);
+        const r = await this.request('graphql', 'post', undefined, {query, variables}, headers, allowedStatusCodes);
+        debugSdkGraphqlQuery('result %j', r);
+        return r;
+    }
+    protected async rawGraphqlQuery(query, variables = {}, headers = undefined, allowedStatusCodes = [200]) {
+        debugSdkGraphqlQuery('raw request %s %j', query, variables);
+        const r = await this.http('graphql', 'post', undefined, {query, variables}, headers, allowedStatusCodes);
+        debugSdkGraphqlQuery('result %j', r);
+        return r;
+    }
+    protected async graphqlMutation(mutation, variables = {}, headers = undefined, allowedStatusCodes = [200]) {
+        debugSdkGraphqlMutation('request %s %j', mutation, variables);
+        const r = await this.request('graphql', 'post', undefined, {query: mutation, variables}, headers, allowedStatusCodes);
+        debugSdkGraphqlMutation('result %j', r);
+        return r;
+    }
+    protected async rawGraphqlMutation(mutation, variables = {}, headers = undefined, allowedStatusCodes = [200]) {
+        debugSdkGraphqlMutation('raw request %s %j', mutation, variables);
+        const r = await this.http('graphql', 'post', undefined, {query: mutation, variables}, headers, allowedStatusCodes);
+        debugSdkGraphqlMutation('result %j', r);
+        return r;
+    }
+    protected async restGet(uri) {
+        return this.request('rest', 'get', uri);
+    }
+    protected async restPost(uri, data = {}) {
+        return this.request('rest', 'post', uri, data);
+    }
+    protected async restUpdate(uri, data = {}) {
+        return this.request('rest', 'put', uri, data);
+    }
+    protected async restDelete(uri) {
+        return this.request('rest', 'delete', uri);
+    }
+    protected async restOptions(uri) {
+        return this.request('rest', 'options', uri);
+    }
+    protected async restHead(uri) {
+        return this.request('rest', 'head', uri);
+    }
+    protected gqlResult(r, key) {
+        if (r?.errors?.length) throw new Error(r.errors[0].message);
+
+        return (r?.data || {})[key];
+    }
+    protected async mutation(queryKey, variables = undefined, dataKey = undefiend, selections = undefined) {
+        return this.gqlResult(await this.graphqlMutation(this.buildQuery(this.queries, queryKey, selections), variables), dataKey || queryKey);
+    }
+    protected async rawMutation(queryKey, variables = undefined, dataKey = undefined, selections = undefined) {
+        return this.gqlResult(await this.rawGraphqlMutation(this.buildQuery(this.queries, queryKey, selections), variables), dataKey || queryKey);
+    }
+    protected async queryAll(queryKey, variables = undefined, dataKey = undefined, selections = undefined) {
+        const fetcher = async (offset: string|undefined) => this.query(queryKey, {...(variables || {}), offset}, dataKey, selections);
+        const processor = async (page: {cursor?: string, count: number, items: any[]}, ctx) => {
+            ctx.items = [...(ctx.items || []), ...page.items];
+        }
+        return (await this.processAllPages(fetcher, processor)).items || [];
+    }
+    protected async query(queryKey, variables = undefined, dataKey = undefined, selections = undefined) {
+        return this.gqlResult(await this.graphqlQuery(this.buildQuery(this.queries, queryKey, selections), variables), dataKey || queryKey);
+    }
+    protected async rawQuery(queryKey, variables = undefined, dataKey = undefined, selections = undefined) {
+        return this.gqlResult(await this.rawGraphqlQuery(this.buildQuery(this.queries, queryKey, selections), variables), dataKey || queryKey);
+    }
+    protected buildQuery(queries, queryKey, selections = undefined) {
+        const q = queries[queryKey];
+        if (!q) throw new Error(`Unknown query '${queryKey}', did you create it in the queries config file?`);
+        if ('string' === typeof q) return q;
+        let [query, defaultSelections = undefined]: [string, undefined|selections] = q;
+        return this.buildFinalQuery(query, this.buildFinalSelections(selections, defaultSelections));
+    }
+    protected buildFinalSelections(selections = undefined, defaultSelections = undefined) {
+        return ((!!selections && !!selections.length) ? (selections.includes('@') ? [...(defaultSelections || []), ...selections] : selections) : (defaultSelections || [])).filter(x => '@' !== x);
+    }
+    protected buildFinalQuery(query, selections) {
+        return query.replace('@selections@', this.buildSelections(selections) || '__typename')
+    }
+    protected buildSelections(selections) {
+        return selections.map((selection) => {
+            if ('string' === typeof selection) return selection;
+            const [s1, s2] = selection;
+            return `${s1} { ${this.buildSelections(s2 || [] as selections)} }`;
+        }).join(' ');
+    }
+    private async processAllPages(fetcher, processor) {
+        let cursor = undefined;
+        const ctx = {};
+        do {
+            const page = await fetcher(cursor);
+            await processor(page, ctx)
+            cursor = page.cursor;
+        } while (!!cursor);
+        return ctx;
+    }
+}
+
+module.exports.BaseSdk = BaseSdk;

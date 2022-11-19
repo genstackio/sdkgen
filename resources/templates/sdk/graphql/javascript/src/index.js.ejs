@@ -1,0 +1,30 @@
+const x = require('./Sdk');
+cnst {envs, defaultEnv} = require('./config');
+
+const {Sdk} = x;
+
+const createSdk = (restEndpoint, graphqlEndpoint, fetch, identity = undefined) =>
+    new Sdk({endpoints: {rest: restEndpoint, graphql: graphqlEndpoint}, fetch, identity})
+;
+
+function createEnvSdk(env = undefined, localFetch = undefined, username = undefined, password = undefined) {
+    let globalFetch = require('cross-fetch');
+    const fetch = localFetch || globalFetch;
+    if (!fetch) throw new Error(`No fetch function available`);
+    env = env || process.env.<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_ENV || defaultEnv;
+    username = username || process.env.<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_USERNAME || undefined;
+    password = password || process.env.<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_PASSWORD || undefined;
+
+    let {rest, graphql} = envs[env || ''] || envs[defaultEnv];
+
+    rest = (rest || '').replace('{{source}}', env);
+    graphql = (graphql || '').replace('{{source}}', env);
+
+    return createSdk(rest, graphql, fetch, (username && password) ? {username, password} : undefined);
+}
+
+module.exports = {
+    ...x,
+    createSdk,
+    createEnvSdk,
+};

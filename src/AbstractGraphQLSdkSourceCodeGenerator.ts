@@ -1,5 +1,8 @@
-import AbstractGraphQLSourceCodeGenerator from "./AbstractGraphQLSourceCodeGenerator";
+import AbstractCodeGenerator from "./AbstractCodeGenerator";
+import fetch from 'cross-fetch';
+import {readFileSync} from 'fs';
 import {
+    code_generator_options,
     sdk_definition,
     sdk_definition_files,
     sdk_service_definition,
@@ -14,6 +17,7 @@ import {
     sdk_service_type
 } from "./types";
 import {
+    buildClientSchema,
     GraphQLEnumType,
     GraphQLInputObjectType,
     GraphQLList,
@@ -23,10 +27,49 @@ import {
     GraphQLType
 } from "graphql";
 
-export abstract class AbstractGenericSdkGraphQLSourceCodeGenerator extends AbstractGraphQLSourceCodeGenerator {
+export abstract class AbstractGraphQLSdkSourceCodeGenerator extends AbstractCodeGenerator {
+    protected definition: any|undefined;
+    protected readonly defaultVars: any;
+    protected readonly envs: any;
+    constructor({vars, envs = {}, ...options}: code_generator_options & {vars?: any, envs?: any}) {
+        super(options);
+        this.definition = undefined;
+        this.defaultVars = {envs, ...vars};
+        this.envs = envs;
+    }
+    protected buildEndpointFromSource(source: string): string {
+        return ((this.envs[source] || this.envs['default'] || {})['graphql'] || 'http://localhost:4000').replace(/\{\{source\}\}/g, source);
+    }
+    protected async buildDefaultVars(): Promise<{[key: string]: any}> {
+        return this.defaultVars;
+    }
+
+    protected async fetchSource(): Promise<void> {
+        const result = await (await fetch(this.buildEndpointFromSource(this.getOptions().source), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json;charset=utf-8',
+                'Accept': 'application/json;charset=utf-8',
+            },
+            body: JSON.stringify({
+                operationName: 'IntrospectionQuery',
+                variables:{},
+                query: readFileSync(`${__dirname}/../resources/introspection.graphql`, 'utf-8'),
+            })
+        })).json();
+
+        this.definition = {
+            introspectionQuery: result.data.__schema,
+            schema: buildClientSchema(result.data)
+        };
+    }
+    protected async prepare(): Promise<void> {
+        await this.fetchSource();
+        await super.prepare();
+    }
     abstract getLanguage(): string;
     protected async configureSdkDefinition(def: sdk_definition): Promise<void> {
-        def.templatePath = `graphql-sdk-${this.getLanguage()}`;
+        def.templatePath = `sdk/graphql/${this.getLanguage()}`;
     }
     protected async buildDynamicFiles(): Promise<sdk_definition_files> {
         const serviceDef = await this.buildSdkServiceDefinition();
@@ -50,10 +93,6 @@ export abstract class AbstractGenericSdkGraphQLSourceCodeGenerator extends Abstr
             ...await this.buildDefaultVars(),
         }
         return vars;
-    }
-    protected async buildDefaultVars(): Promise<{[key: string]: any}> {
-        return {
-        };
     }
     protected async buildStaticFilesFromStaticTemplates(): Promise<{[key: string]: string|true}> {
         return {
@@ -206,8 +245,8 @@ export abstract class AbstractGenericSdkGraphQLSourceCodeGenerator extends Abstr
                 return {type: (type as any).name, gqlType: (type as any).name};
         }
     }
-    buildPrimitiveTypeMapping(type: GraphQLScalarType): sdk_service_type {
-        const mapping = {
+    getPrimitiveTypeMapping() {
+        return {
             Int: 'number',
             String: 'string',
             BigInt: 'number',
@@ -216,6 +255,9 @@ export abstract class AbstractGenericSdkGraphQLSourceCodeGenerator extends Abstr
             ID: 'string',
             unknown: 'unknown',
         };
+    }
+    buildPrimitiveTypeMapping(type: GraphQLScalarType): sdk_service_type {
+        const mapping = this.getPrimitiveTypeMapping();
         if (mapping[type.name]) return {type: mapping[type.name], primitive: true, gqlType: type.name};
         console.warn(`unknown graphql scalar type '${(type as any).name}'`);
         return {type: mapping['unknown'], primitive: true, gqlType: type.name};
@@ -231,4 +273,4 @@ export abstract class AbstractGenericSdkGraphQLSourceCodeGenerator extends Abstr
     }
 }
 
-export default AbstractGenericSdkGraphQLSourceCodeGenerator;
+export default AbstractGraphQLSdkSourceCodeGenerator;

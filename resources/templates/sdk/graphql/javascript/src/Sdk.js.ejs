@@ -1,0 +1,36 @@
+// noinspection JSUnusedGlobalSymbols
+
+const {BaseSdk} = require('./BaseSdk');
+const queries = require('./queries');
+
+class Sdk extends BaseSdk {
+    constructor(config) {
+        super({queries, ...config});
+    }
+<%
+var ms = Object.keys(methods || {});
+ms.sort()
+
+ms.forEach(method => {
+const m = methods[method];
+const argNames = (m.args || []).map(a => a.name);
+const requiredArgs = (m.args || []).filter(arg => !!arg.required);
+const optionalArgs = (m.args || []).filter(arg => !arg.required);
+const hasRequiredArgs = !!requiredArgs.length;
+const hasOptionalArgs = !!optionalArgs.length;
+const requiredArgsString = requiredArgs.map(arg => `${arg.name}`).join(', ');
+const optionalArgsString = optionalArgs.map(arg => `${arg.name} = undefined`).join(', ');
+-%>
+    <%= m.async ? 'async ' : '' %><%= m.name %>(<%= `${requiredArgsString}${(hasOptionalArgs && hasRequiredArgs) ? ', ' : ''}${optionalArgsString}` -%><%- (requiredArgsString || hasOptionalArgs) ? ', ': '' %>fields = []) {
+<% if ('mutation' === m.type) { -%>
+        return this.mutation('<%= m.name %>'<% if (argNames.length > 0) { %>, {<%= argNames.join(', ') %>}<% } else { %>, undefined<% } %>, undefined, fields);
+<% } else if ('query' === m.type) { -%>
+        return this.query('<%= m.name %>'<% if (argNames.length > 0) { %>, {<%= argNames.join(', ') %>}<% } else { %>, undefined<% } %>, undefined, fields);
+<% } else { -%>
+        return {};
+<% } -%>
+    }
+<% }) -%>
+}
+
+module.exports = {Sdk};
