@@ -3,10 +3,10 @@ import {
     sdk_service_definition_inputs,
     sdk_service_definition_models,
     sdk_service_definition_queries,
-} from "./types";
-import AbstractGenericSdkGraphQLSourceCodeGenerator from "./AbstractGenericSdkGraphQLSourceCodeGenerator";
+} from "../../types";
+import AbstractGraphQLSdkSourceCodeGenerator from "../../AbstractGraphQLSdkSourceCodeGenerator";
 
-export abstract class AbstractGoSdkGraphQLSourceCodeGenerator extends AbstractGenericSdkGraphQLSourceCodeGenerator {
+export class GoGraphqlSdkSourceCodeGenerator extends AbstractGraphQLSdkSourceCodeGenerator {
     public getLanguage() {
         return 'go';
     }
@@ -27,7 +27,7 @@ export abstract class AbstractGoSdkGraphQLSourceCodeGenerator extends AbstractGe
             'cmd/main/sdk.go': () => sdkFileContent,
         };
     }
-
+    // noinspection JSUnusedLocalSymbols
     protected async buildSdkFileContent(def: sdk_service_definition, vars: any) {
         const queries = this.sortQueries(def.queries!);
         return `
@@ -40,11 +40,11 @@ type Sdk struct {
 }
 
 ${queries.map(([_, q]) => {
-    return `func (s *Sdk) ${this.capitalizeFirstLetter(q.name)}(${this.buildSdkArgs(q.args)}) (bool, error) {
+            return `func (s *Sdk) ${this.capitalizeFirstLetter(q.name)}(${this.buildSdkArgs(q.args)}) (bool, error) {
     Build${this.capitalizeFirstLetter(q.name)}.Query
     return true, nil
 }`
-}).join("\n")}
+        }).join("\n")}
 `.trim();
     }
 
@@ -63,15 +63,16 @@ type ${this.capitalizeFirstLetter(q.name)} struct {
     protected buildFieldsNamesAndTypes(f, n) {
         switch (true) {
             case f.primitive:
-                return `${this.capitalizeFirstLetter(f.name)} ${this.buildFieldTypes(f)} ${`\`json:"${f.name}"\``}`;
+                return `${this.capitalizeFirstLetter(f.name)} ${this.buildFieldTypes(f)} \`json:"${f.name}"\``;
             case f.list:
-                return `${this.capitalizeFirstLetter(f.name)} ${this.buildFieldTypes(f)} ${`\`json:"${f.name}"\``}`;
+                return `${this.capitalizeFirstLetter(f.name)} ${this.buildFieldTypes(f)} \`json:"${f.name}"\``;
             case n === f.gqlType:
-                return `${this.capitalizeFirstLetter(f.name)} *${this.buildFieldTypes(f)} ${`\`json:"${f.name}"\``}`;
+                return `${this.capitalizeFirstLetter(f.name)} *${this.buildFieldTypes(f)} \`json:"${f.name}"\``;
             default:
-                return `${this.capitalizeFirstLetter(f.name)} ${this.buildFieldTypes(f)} ${`\`json:"${f.name}"\``}`;
+                return `${this.capitalizeFirstLetter(f.name)} ${this.buildFieldTypes(f)} \`json:"${f.name}"\``;
         }
     }
+    // noinspection JSUnusedLocalSymbols
     protected async buildQueriesFileContent(def: sdk_service_definition, vars: any) {
         const queries = this.sortQueries(def.queries!);
         return `
@@ -83,14 +84,15 @@ type QueryAndFields struct {
 }
 
 ${queries.map(([_, q]) => {
-    return `var Build${this.capitalizeFirstLetter(q.name)} = QueryAndFields{${this.buildsQueries(q)}, ${this.buildQueryFields(q.fields)}}`
-}).join("\n")}
+            return `var Build${this.capitalizeFirstLetter(q.name)} = QueryAndFields{${this.buildsQueries(q)}, ${this.buildQueryFields(q.fields)}}`
+        }).join("\n")}
 `.trim();
     }
-
+    // noinspection JSUnusedLocalSymbols
     protected async buildInputsFileContent(def: sdk_service_definition, vars: any) {
         return this.buildTypesFileContent(def.inputs || {});
     }
+    // noinspection JSUnusedLocalSymbols
     protected async buildModelsFileContent(def: sdk_service_definition, vars: any) {
         return this.buildTypesFileContent(def.models || {});
     }
@@ -128,8 +130,9 @@ ${queries.map(([_, q]) => {
         return `${Object.entries(o || {}).map(([_, f]: any[]) => `${f.name} ${this.buildFieldTypes(f)}`).join(", ")}`;
     }
     protected sortQueries(q: sdk_service_definition_queries) {
-        return Object.entries(q || {}).sort(([aS, a], [bS, b]) => b.type.localeCompare(a.type) || a.name.localeCompare(b.name))
+        return Object.entries(q || {}).sort(([aS, a], [_, b]) => b.type.localeCompare(a.type) || a.name.localeCompare(b.name))
     }
 }
 
-export default AbstractGoSdkGraphQLSourceCodeGenerator;
+// noinspection JSUnusedGlobalSymbols
+export default GoGraphqlSdkSourceCodeGenerator;

@@ -1,0 +1,4 @@
+module.exports = {
+    envs: <%- JSON.stringify((('undefined' === typeof envs) ? {} : envs), null, 4) %>,
+    defaultEnv: <%- JSON.stringify(('undefined' === typeof defaultEnv) ? 'prod' : defaultEnv) %>,
+};
