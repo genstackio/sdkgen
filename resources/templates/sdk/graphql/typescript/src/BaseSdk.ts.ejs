@@ -71,7 +71,7 @@ export abstract class BaseSdk {
         debugSdkTokens('decoded %j (from %s)', x, token);
         return x as auth_data;
     }
-    protected setTokens(tokens: non_empty_sdk_auth_tokens) {
+    public setTokens(tokens: non_empty_sdk_auth_tokens) {
         debugSdkTokens('tokens %j', tokens)
         this.tokens = tokens;
         return this;
