@@ -3,6 +3,7 @@
 import {fetch, queries, selection, selections, variables, sdk_identity, sdk_auth_tokens, non_empty_sdk_auth_tokens, sdk_options, sdk_config, auth_data} from './types';
 import decodeJwt from 'jwt-decode';
 import debug from 'debug';
+import retry, {IRetrier} from '@genstackio/retry';
 
 const debugSdk = debug('<%= ('undefined' === typeof sdkDebugPrefix) ? 'sdk' : sdkDebugPrefix %>');
 const debugSdkIdentity = debug('<%= ('undefined' === typeof sdkDebugPrefix) ? 'sdk' : sdkDebugPrefix %>:identity');
@@ -22,13 +23,19 @@ export abstract class BaseSdk {
     private tokens: sdk_auth_tokens;
     private readonly queries: queries;
     private readonly options: sdk_options;
+    private readonly retriers: Record<string, IRetrier>;
     protected constructor({endpoints, fetch, identity, queries, options = {}}: sdk_config) {
+        this.retriers = {};
         this.endpoints = endpoints;
         this.fetch = fetch;
         this.queries = queries;
         this.options = {...defaultOptions, ...options} as sdk_options;
         this.setIdentity(identity);
         debugSdk('instantiate %j', this);
+    }
+    public setRetrier(retrier: IRetrier, name: string = 'default') {
+        this.retriers[name] = retrier;
+        return this;
     }
     public setIdentity(identity: sdk_identity) {
         this.identity = !!identity ? {username: identity.username, password: identity.password} : undefined;
@@ -91,25 +98,49 @@ export abstract class BaseSdk {
         debugSdkTokens('cleaned');
         return this;
     }
-    protected async request(service, method: string, uri: string|undefined = undefined, body: any|undefined = undefined, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = undefined) {
+    protected async request(service, method: string, uri: string|undefined = undefined, body: any|undefined = undefined, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = undefined, retryMode: string = 'default', retryOptions: any = {}) {
         await this.prepareAuthTokens();
-        return this.http(service, method, uri, body, {...(headers ? headers : {}), ...(this.tokens?.accessToken ? {Authorization: `bearer ${this.tokens!.accessToken}`} : {})}, allowedStatusCodes);
+        return this.httpWithRetry(service, method, uri, body, {...(headers ? headers : {}), ...(this.tokens?.accessToken ? {Authorization: `bearer ${this.tokens!.accessToken}`} : {})}, allowedStatusCodes, retryMode, retryOptions);
     }
     protected isAllowedStatusCodes(status, expected: number[]) {
         return expected.includes(status);
     }
+    protected async httpWithRetry(service, method: string, uri: string|undefined = undefined, body: any|undefined = undefined, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = undefined, retryMode: string = 'default', retryOptions: any = {}) {
+        return retry(async () => this.http(service, method, uri, body, headers, allowedStatusCodes), {retriers: this.retriers, mode: retryMode, options: retryOptions});
+    }
     protected async http(service, method: string, uri: string|undefined = undefined, body: any|undefined = undefined, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = undefined) {
         debugSdkHttp('fetch > service: %s, method: %s, uri: %s, body: %j, headers: %j, allowedStatusCode: %j', service, method, uri, body, headers, allowedStatusCodes);
-        const res = await this.fetch(`${this.endpoints[service]}${uri || ''}`, {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': '<%= ('undefined' === typeof userAgent) ? `${companyName.toLowerCase().replace(/[a-z0-9]+/, '_')}-graphql-typescript-sdk` : userAgent %>',
-                ...(headers || {})
-            },
-            body: body && JSON.stringify(body)
-        });
+<% if ('undefined' !== typeof timeout) { %>
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), <%= timeout %>);
+<% } %>
+        let res: any;
+        try {
+            res = await this.fetch(`${this.endpoints[service]}${uri || ''}`, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'User-Agent': '<%= ('undefined' === typeof userAgent) ? `${companyName.toLowerCase().replace(/[a-z0-9]+/, '_')}-graphql-typescript-sdk` : userAgent %>',
+                    ...(headers || {})
+                },
+                body: body && JSON.stringify(body),
+<% if ('undefined' !== typeof timeout) { %>
+                signal: controller.signal,
+<% } %>
+            });
+        } catch (ee: any) {
+            debugSdkHttp('response connect error %d', res.status);
+            const err = new Error(`Unable to connect to ${service} API (expected: ${JSON.stringify(allowedStatusCodes)}, actual: ${res.status}), message: ${ee.message}`);
+            err['code'] = Number(res.status);
+<% if ('undefined' !== typeof timeout) { %>
+            clearTimeout(timeoutId);
+<% } %>
+            throw err;
+        }
+<% if ('undefined' !== typeof timeout) { %>
+        clearTimeout(timeoutId);
+<% } %>
         if (!!allowedStatusCodes && !!allowedStatusCodes.length && !this.isAllowedStatusCodes(res.status, allowedStatusCodes)) {
             let details: any = undefined;
             try {
@@ -122,7 +153,9 @@ export abstract class BaseSdk {
                 }
             }
             debugSdkHttp('response code unauthorized %d, content: %j', res.status, details);
-            throw new Error(`${service} API responded with an unauthorized status code (expected: ${JSON.stringify(allowedStatusCodes)}, actual: ${res.status}) and content: ${details}`);
+            const err = new Error(`${service} API responded with an unauthorized status code (expected: ${JSON.stringify(allowedStatusCodes)}, actual: ${res.status}) and content: ${details}`);
+            err['code'] = Number(res.status);
+            throw err;
         }
 
         const r = await res.json();
@@ -135,21 +168,21 @@ export abstract class BaseSdk {
         debugSdkGraphqlQuery('result %j', r);
         return r;
     }
-    protected async rawGraphqlQuery(query: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200]) {
+    protected async rawGraphqlQuery(query: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200], retryMode: string = 'default', retryOptions: any = {}) {
         debugSdkGraphqlQuery('raw request %s %j', query, variables);
-        const r = await this.http('graphql', 'post', undefined, {query, variables}, headers, allowedStatusCodes);
+        const r = await this.httpWithRetry('graphql', 'post', undefined, {query, variables}, headers, allowedStatusCodes, retryMode, retryOptions);
         debugSdkGraphqlQuery('result %j', r);
         return r;
     }
-    protected async graphqlMutation(mutation: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200]) {
+    protected async graphqlMutation(mutation: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200], retryMode: string = 'default', retryOptions: any = {}) {
         debugSdkGraphqlMutation('request %s %j', mutation, variables);
-        const r = await this.request('graphql', 'post', undefined, {query: mutation, variables}, headers, allowedStatusCodes);
+        const r = await this.request('graphql', 'post', undefined, {query: mutation, variables}, headers, allowedStatusCodes, retryMode, retryOptions);
         debugSdkGraphqlMutation('result %j', r);
         return r;
     }
-    protected async rawGraphqlMutation(mutation: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200]) {
+    protected async rawGraphqlMutation(mutation: string, variables: any = {}, headers: any|undefined = undefined, allowedStatusCodes: number[]|undefined = [200], retryMode: string = 'default', retryOptions: any = {}) {
         debugSdkGraphqlMutation('raw request %s %j', mutation, variables);
-        const r = await this.http('graphql', 'post', undefined, {query: mutation, variables}, headers, allowedStatusCodes);
+        const r = await this.httpWithRetry('graphql', 'post', undefined, {query: mutation, variables}, headers, allowedStatusCodes, retryMode, retryOptions);
         debugSdkGraphqlMutation('result %j', r);
         return r;
     }

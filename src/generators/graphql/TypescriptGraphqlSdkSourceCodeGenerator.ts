@@ -69,6 +69,7 @@ export class TypescriptGraphqlSdkSourceCodeGenerator extends AbstractGraphQLSdkS
             "scripts": scripts[repoType || 'default'] || scripts['default'],
             "dependencies": {
                 "jwt-decode": "^3.1.2",
+                '@genstackio/retry': '^0.1.1',
                 ...dependencies,
             },
             "peerDependencies": {
