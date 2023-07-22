@@ -130,9 +130,9 @@ export abstract class BaseSdk {
 <% } %>
             });
         } catch (ee: any) {
-            debugSdkHttp('response connect error %d', res.status);
-            const err = new Error(`Unable to connect to ${service} API (expected: ${JSON.stringify(allowedStatusCodes)}, actual: ${res.status}), message: ${ee.message}`);
-            err['code'] = Number(res.status);
+            debugSdkHttp('response connect error for url %s: %s', `${this.endpoints[service]}${uri || ''}`, ee.message);
+            const err = new Error(`Unable to connect to ${service} API (expected: ${JSON.stringify(allowedStatusCodes)}, actual: ?), message: ${ee.message}`);
+            err['code'] = 500;
 <% if ('undefined' !== typeof timeout) { %>
             clearTimeout(timeoutId);
 <% } %>
