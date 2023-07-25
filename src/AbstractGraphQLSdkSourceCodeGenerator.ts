@@ -128,7 +128,8 @@ export abstract class AbstractGraphQLSdkSourceCodeGenerator extends AbstractCode
             'HexColorCode', 'HSL', 'HSLA', 'IPv4', 'IPv6', 'ISBN', 'JWT', 'Latitude', 'Longitude', 'MAC', 'Port',
             'RGB', 'RGBA', 'USCurrency', 'Currency', 'JSON', 'JSONObject', 'IBAN', 'ObjectID', 'Void', 'DID',
             'TimeZone', 'CountryCode', 'Locale', 'RoutingNumber', 'AccountNumber', 'Cuid', 'Upload',
-        ].reduce((acc, k) => Object.assign(acc, {[k]: true}), {} as sdk_service_definition_ignored_models);
+            'DateTimeISO', 'LocalDateTime', 'DeweyDecimal', 'LCCSubclass', 'IPCPatent',
+    ].reduce((acc, k) => Object.assign(acc, {[k]: true}), {} as sdk_service_definition_ignored_models);
         def.models = this.sortObject(Object.entries(this.definition.schema.getTypeMap()).reduce((acc, [k]) => {
             if (/^.+Input$/.test(k)) return acc;
             acc[k] = def.types![k];
@@ -320,6 +321,11 @@ export abstract class AbstractGraphQLSdkSourceCodeGenerator extends AbstractCode
             UUID: 'string',
             Upload: 'any',
             Void: 'null',
+            DateTimeISO: 'string',
+            LocalDateTime: 'string',
+            DeweyDecimal: 'float',
+            LCCSubclass: 'string',
+            IPCPatent: 'string',
         };
     }
     mapTypeName(name: string) {
