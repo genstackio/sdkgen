@@ -1,0 +1,279 @@
+package <%= packageName %>
+
+import (
+	"bytes"
+	"encoding/json"
+	baseErrors "errors"
+	"fmt"
+	"github.com/genstackio/goerror/errors"
+	"github.com/lestrrat-go/jwx/jwt"
+	"io"
+	http2 "net/http"
+	"strconv"
+	"strings"
+	"time"
+)
+
+func mergeFieldsUnique(a []string, b []string) []string {
+	m := map[string]bool{}
+
+	for _, v := range a {
+		if "@" == v {
+			continue
+		}
+		m[v] = true
+	}
+	for _, v := range b {
+		if "@" == v {
+			continue
+		}
+		m[v] = true
+	}
+
+	keys := make([]string, len(m))
+
+	i := 0
+	for k := range m {
+		keys[i] = k
+		i++
+	}
+
+	return keys
+}
+func mergeSubsUnique(a []Selection, b []Selection) []Selection {
+	m := map[string]Selections{}
+
+	for _, v := range a {
+		if "@" == v.Name {
+			continue
+		}
+		m[v.Name] = v.Selections
+	}
+	for _, v := range b {
+		if "@" == v.Name {
+			continue
+		}
+		_, ok := m[v.Name]
+		if !ok {
+			m[v.Name] = v.Selections
+		}
+	}
+
+	result := make([]Selection, len(m))
+
+	i := 0
+	for k, v := range m {
+		result[i] = Selection{
+			Name:       k,
+			Selections: v,
+		}
+		i++
+	}
+
+	return result
+}
+func buildFinalSelections(a Selections, b Selections) Selections {
+	if len(a.Fields) == 0 {
+		if len(a.Subs) == 0 {
+			return b
+		}
+		return a
+	}
+	foundArobase := false
+	for _, v := range a.Fields {
+		if v == "@" {
+			foundArobase = true
+			break
+		}
+	}
+
+	if foundArobase {
+		return Selections{
+			Fields: mergeFieldsUnique(a.Fields, b.Fields),
+			Subs:   mergeSubsUnique(a.Subs, b.Subs),
+		}
+	}
+
+	return b
+}
+func buildFinalQuery(query string, selections Selections) (string, error) {
+	s := ""
+	if len(selections.Fields) > 0 {
+		for _, n := range selections.Fields {
+			if len(s) > 0 {
+				s = s + " " + n
+			} else {
+				s = n
+			}
+		}
+	}
+	if len(selections.Subs) > 0 {
+		for _, n := range selections.Subs {
+			ss, err := buildFinalQuery(n.Name+" { @selections@ }", n.Selections)
+			if err != nil {
+				return "", err
+			}
+			if len(s) > 0 {
+				s = s + " " + ss
+			} else {
+				s = ss
+			}
+		}
+	}
+	return strings.ReplaceAll(query, "@selections@", s), nil
+}
+
+func buildError(err error, errs *[]GraphqlError, operation string, params map[string]interface{}) error {
+	if nil != err {
+		return err
+	}
+	if nil != errs && len(*errs) > 0 {
+		return mapGraphqlErrors(errs, operation, params)
+	}
+	return nil
+}
+
+func mapGraphqlErrors(errs *[]GraphqlError, operation string, params map[string]interface{}) error {
+	var mappedErrs []error
+
+	for _, e := range *errs {
+		mappedErrs = append(mappedErrs, mapGraphqlError(e, operation, params))
+	}
+
+	switch len(mappedErrs) {
+	case 0:
+		return nil
+	case 1:
+		return mappedErrs[0]
+	default:
+		return mappedErrs[0] // @todo create a wrapping error ?
+	}
+}
+
+func mapGraphqlError(err GraphqlError, operation string, params map[string]interface{}) error {
+	switch err.Extensions.Exception.ErrorType {
+	case "document-not-found":
+		return errors.UnknownDocumentError{
+			Key:   fmt.Sprintf("%s", params["key"]),
+			Value: fmt.Sprintf("%s", params["value"]),
+			Type:  fmt.Sprintf("%s", params["type"]),
+			Err:   err,
+		}
+	case "validation":
+		var fieldNames []string
+		for k := range err.Extensions.Exception.ErrorInfo {
+			fieldNames = append(fieldNames, k)
+		}
+		return errors.ValidationError{
+			FieldNames:  fieldNames,
+			FieldErrors: err.Extensions.Exception.ErrorInfo,
+			Err:         err,
+		}
+	case "bad-credentials":
+		return errors.AccessDeniedError{
+			Err: err,
+		}
+	default:
+		switch operation {
+		case "document_creation":
+			return errors.DocumentCreationError{
+				Params: params,
+				Err:    fmt.Errorf("unable to create %s", params["type"]),
+				Type:   fmt.Sprintf("%s", params["type"]),
+			}
+		case "document_update":
+			return errors.DocumentUpdateError{
+				Key:    fmt.Sprintf("%s", params["key"]),
+				Value:  fmt.Sprintf("%s", params["value"]),
+				Params: params,
+				Err:    fmt.Errorf("unable to create %s", params["type"]),
+				Type:   fmt.Sprintf("%s", params["type"]),
+			}
+		case "document_retrieve":
+			return errors.DocumentRetrieveError{
+				Key:   fmt.Sprintf("%s", params["key"]),
+				Value: fmt.Sprintf("%s", params["value"]),
+				Err:   fmt.Errorf("unable to create %s", params["type"]),
+				Type:  fmt.Sprintf("%s", params["type"]),
+			}
+		case "documents_find":
+			return errors.DocumentsFindError{
+				Err:    err,
+				Type:   fmt.Sprintf("%s", params["type"]),
+				Params: params["variables"].(map[string]interface{}),
+			}
+		default:
+			return errors.GenericError{
+				Params: params,
+				Err:    fmt.Errorf("unexpected error for operation %s", operation),
+			}
+		}
+	}
+}
+
+func decodeJwt(token string) (jwt.Token, error) {
+	t, err := jwt.Parse([]byte(token))
+
+	return t, err
+}
+
+func (err GraphqlError) Error() string {
+	return err.Message
+}
+
+func mergeMaps(m1 map[string]string, m2 map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for k, v := range m1 {
+		merged[k] = v
+	}
+	for key, value := range m2 {
+		merged[key] = value
+	}
+	return merged
+}
+
+func fetch(url string, opts FetchOptions) (*http2.Response, error) {
+	var bodyReader io.Reader = opts.BodyReader
+	if nil != opts.Body {
+		rawBody, err := json.Marshal(opts.Body)
+
+		if err != nil {
+			return nil, err
+		}
+
+		bodyReader = bytes.NewReader(rawBody)
+	}
+
+	req, err := http2.NewRequest(opts.Method, url, bodyReader)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for k, v := range opts.Headers {
+		req.Header.Set(k, v)
+	}
+
+	var client *http2.Client
+
+	if nil != opts.Options.Client {
+		client = opts.Options.Client
+	} else {
+		client = &http2.Client{}
+	}
+	if opts.Options.Timeout > 0 {
+		client.Timeout = time.Duration(opts.Options.Timeout * 1000000000)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode < 200 || res.StatusCode >= 400 {
+		respBytes, _ := io.ReadAll(res.Body)
+		return res, baseErrors.New("Bad response for server (statusCode: " + strconv.Itoa(res.StatusCode) + "): " + string(respBytes))
+	}
+
+	return res, nil
+}

@@ -1,0 +1,58 @@
+package <%= packageName %>
+
+import (
+	"os"
+	"strings"
+)
+
+var sdk *Client
+
+//goland:noinspection GoUnusedExportedFunction
+func Sdk() *Client {
+	if nil == sdk {
+		sdk = CreateEnvSdk("", "", "")
+	}
+	return sdk
+}
+
+func CreateSdk(endpoint string, identity ClientIdentity, env string) *Client {
+	sdk := Client{
+		endpoint: endpoint,
+		identity: ClientIdentity{
+			Username: identity.Username,
+			Password: identity.Password,
+		},
+	}
+	sdk.Init(identity.Username, identity.Password, env)
+
+	return &sdk
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func CreateEnvSdk(env string, username string, password string) *Client {
+	if len(env) == 0 {
+		env = os.Getenv("<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_ENV")
+	}
+	if len(env) == 0 {
+		env = DefaultEnv
+	}
+	if len(username) == 0 {
+		username = os.Getenv("<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_USERNAME")
+	}
+	if len(password) == 0 {
+		password = os.Getenv("<%= ('undefined' === typeof sdkEnvVarPrefix) ? 'SDK' : sdkEnvVarPrefix %>_PASSWORD")
+	}
+
+	endpoint, ok := Envs[env]
+
+	if !ok {
+		endpoint = Envs["default"]
+	}
+
+	endpoint = strings.ReplaceAll(endpoint, "{{source}}", env)
+
+	return CreateSdk(endpoint, ClientIdentity{
+		Username: username,
+		Password: password,
+	}, env)
+}

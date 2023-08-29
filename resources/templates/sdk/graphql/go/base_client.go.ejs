@@ -1,0 +1,119 @@
+package <%= packageName %>
+
+import (
+	"errors"
+	"<%= 'undefined' === typeof moduleName ? 'main' : moduleName %>/types"
+	"github.com/lestrrat-go/jwx/jwt"
+	"math"
+	http2 "net/http"
+	"time"
+)
+
+func (c *Client) Init(clientId string, clientSecret string, env string) {
+	c.identity.Username = clientId
+	c.identity.Password = clientSecret
+	if len(env) > 0 {
+		c.env = env
+	}
+	c.options = ClientOptions{
+		MinExpirationDelay: 1,
+	}
+	c.httpClient = http2.DefaultClient
+}
+
+func (c *Client) isIdentified() bool {
+	return len(c.identity.Username) > 0
+}
+
+func (c *Client) decodeToken(token string) (jwt.Token, error) {
+	t, err := decodeJwt(token)
+
+	return t, err
+}
+func (c *Client) isTokenExpired(token string) bool {
+	if len(token) <= 0 {
+		return true
+	}
+	decodedToken, err := c.decodeToken(token)
+	if err != nil {
+		return false
+	}
+	now := int64(math.Floor(float64(time.Now().UnixMilli()) / float64(1000)))
+	exp := int64(math.Floor(float64(decodedToken.Expiration().UnixMilli()) / float64(1000)))
+	return (exp - now) < (c.options.MinExpirationDelay)
+}
+func (c *Client) isAccessTokenValid() bool {
+	if len(c.tokens.AccessToken) <= 0 {
+		return false
+	}
+	return !c.isTokenExpired(c.tokens.AccessToken)
+
+}
+func (c *Client) createAuthTokensFromRefreshToken(refreshToken string) (ClientTokens, error) {
+	if len(refreshToken) <= 0 {
+		return ClientTokens{}, errors.New("empty refresh token, please reset tokens")
+	}
+	ct, err := c.anonymousRefreshAuthToken(types.RefreshAuthTokenInput{RefreshToken: String(refreshToken)}, Selections{})
+	return ClientTokens{AccessToken: ct.Token, RefreshToken: ct.RefreshToken}, err
+}
+func (c *Client) createAuthTokensFromIdentity(identity ClientIdentity) (ClientTokens, error) {
+	if len(identity.Username) <= 0 {
+		return ClientTokens{}, errors.New("empty identity, please set identity first")
+	}
+	ct, err := c.anonymousCreateAuthToken(types.CreateAuthTokenInput{
+		Username: String(identity.Username),
+		Password: String(identity.Password),
+	}, Selections{})
+	return ClientTokens{AccessToken: ct.Token, RefreshToken: ct.RefreshToken}, err
+}
+func (c *Client) anonymousCreateAuthToken(data types.CreateAuthTokenInput, fields Selections) (*types.AuthTokenResponse, error) {
+	var respData types.CreateAuthTokenResponse
+	d := map[string]interface{}{"username": data.Username, "password": data.Password}
+
+	variables := map[string]interface{}{"data": d}
+
+	return rawMutation[types.CreateAuthTokenResponse, types.AuthTokenResponse](c, "createAuthToken", variables, &respData, func(r *types.CreateAuthTokenResponse) *types.AuthTokenResponse {
+		return &r.CreateAuthToken
+	}, fields, "document_creation", map[string]interface{}{
+		"params": variables, "type": "auth_token",
+	})
+}
+func (c *Client) anonymousRefreshAuthToken(data types.RefreshAuthTokenInput, fields Selections) (*types.AuthTokenResponse, error) {
+	var respData types.RefreshAuthTokenResponse
+
+	d := map[string]interface{}{"refreshToken": data.RefreshToken}
+
+	variables := map[string]interface{}{"data": d}
+	return rawMutation[types.RefreshAuthTokenResponse, types.AuthTokenResponse](c, "refreshAuthToken", variables, &respData, func(r *types.RefreshAuthTokenResponse) *types.AuthTokenResponse {
+		return &r.RefreshAuthToken
+	}, fields, "document_creation", map[string]interface{}{
+		"params": variables, "type": "auth_token",
+	})
+}
+
+func (c *Client) refreshAccessToken() error {
+	if c.isTokenExpired(c.tokens.RefreshToken) {
+		tokens, err := c.createAuthTokensFromIdentity(c.identity)
+		if err != nil {
+			return err
+		}
+		c.tokens = tokens
+		return nil
+	}
+	tokens, err := c.createAuthTokensFromRefreshToken(c.tokens.RefreshToken)
+	if err != nil {
+		return err
+	}
+	c.tokens = tokens
+	return nil
+}
+func (c *Client) prepareAuthTokens() error {
+	if !c.isIdentified() {
+		return nil
+	}
+	if c.isAccessTokenValid() {
+		return nil
+	}
+	return c.refreshAccessToken()
+
+}

@@ -1,0 +1,179 @@
+package <%= packageName %>
+
+import "strings"
+
+var fragments = map[string]string{
+	"pageDefinition": `
+		{{name}}PageDefinition {
+					metas {
+						type
+						name
+						value
+					}
+					lang
+					title
+					template
+					theme
+					styles
+					backgroundColor
+					facebookPixelId
+					facebookPixelActions {
+						action
+						name
+						data
+					}
+					body {
+						items {
+							type
+							config {
+								type
+								visibility
+								state
+								theme
+								styles
+								zone
+								items {
+									visibility
+									state
+									theme
+									styles
+									params {
+										type
+										name
+										value
+										intValue
+										floatValue
+										booleanValue
+										jsonValue
+									}
+								}
+								params {
+									type
+									name
+									value
+									intValue
+									floatValue
+									booleanValue
+									jsonValue
+								}
+							}
+						}
+					}
+				}
+`,
+}
+
+func (s *Selections) Image(name string, format string) *Selections {
+	return s.Sub(name+"Image", Selections{
+		Fields: []string{"available", "url(format: \"" + format + "\")"},
+	})
+}
+func (s *Selections) Screenshots(name string) *Selections {
+	ss := Selections{}
+	(&ss).Sub("desktop", Selections{Fields: []string{"url", "fullscreenUrl"}})
+	(&ss).Sub("mobile", Selections{Fields: []string{"url", "fullscreenUrl"}})
+	(&ss).Sub("tablet", Selections{Fields: []string{"url", "fullscreenUrl"}})
+	(&ss).Sub("thumbnail", Selections{Fields: []string{"url", "fullscreenUrl"}})
+
+	return s.Sub(name+"Screenshots", ss)
+}
+func (s *Selections) File(name string) *Selections {
+	return s.Sub(name+"File", Selections{
+		Fields: []string{"available", "url"},
+	})
+}
+func (s *Selections) AudioFile(name string) *Selections {
+	return s.Sub(name+"AudioFile", Selections{
+		Fields: []string{"available", "url", "contentType", "name"},
+	})
+}
+func (s *Selections) VideoFile(name string) *Selections {
+	return s.Sub(name+"File", Selections{
+		Fields: []string{"available", "url", "contentType", "name"},
+	})
+}
+func (s *Selections) BodyFile(name string) *Selections {
+	return s.Sub("body"+strings.ToUpper(name[0:1])+name[1:]+"File", Selections{
+		Fields: []string{"available", "size", "url", "name", "contentType", "content"},
+	})
+}
+func (s *Selections) SvgFile() *Selections {
+	return s.Sub("svgFile", Selections{
+		Fields: []string{"available", "size", "url", "content"},
+	})
+}
+func (s *Selections) Css(name string) *Selections {
+	return s.Sub(name+"Css", Selections{
+		Fields: []string{"size", "available", "url", "content"},
+	})
+}
+func (s *Selections) Js(name string) *Selections {
+	return s.Sub(name+"Js", Selections{
+		Fields: []string{"size", "available", "url", "content"},
+	})
+}
+
+func (s *Selections) Params(name string) *Selections {
+	fullName := name
+	if len(name) == 0 {
+		fullName = "params"
+	}
+	return s.Sub(fullName, Selections{
+		Fields: []string{"name", "value", "type", "intValue", "floatValue", "booleanValue", "jsonValue"},
+	})
+}
+func (s *Selections) Sub(name string, selections Selections) *Selections {
+	return s.Add([]string{}, []Selection{
+		{Name: name, Selections: selections},
+	})
+}
+
+func (s *Selections) Add(fields []string, subs []Selection) *Selections {
+	if len(fields) > 0 {
+		s.Fields = append(s.Fields, fields...)
+	}
+	if len(subs) > 0 {
+		s.Subs = append(s.Subs, subs...)
+	}
+	return s
+}
+
+func (s *Selections) PageDefinition(name string) *Selections {
+	return s.NamedFieldFragment(name, "pageDefinition")
+}
+
+func (s *Selections) NamedFieldFragment(name string, fragmentName string) *Selections {
+	return s.NamedFieldFragmentWithParams(name, fragmentName, map[string]string{})
+}
+func (s *Selections) NamedFieldFragmentWithParams(name string, fragmentName string, params map[string]string) *Selections {
+	f, ok := fragments[fragmentName]
+
+	if !ok {
+		f = ""
+	}
+
+	return s.Fragment(strings.ReplaceAll(f, "{{name}}", name), params)
+}
+func (s *Selections) Fragment(f string, params map[string]string) *Selections {
+	ss := strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(f), "\r\n", " "), "\n", " ")
+
+	for k, v := range params {
+		ss = strings.ReplaceAll(ss, "{{"+k+"}}", v)
+	}
+
+	return s.Add([]string{ss}, []Selection{})
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func DefaultFields() *Selections {
+	return Fields("@")
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func Fields(fields ...string) *Selections {
+	s := Selections{
+		Fields: fields,
+		Subs:   []Selection{},
+	}
+	return &s
+}
