@@ -1,6 +1,6 @@
 {
   "name": "@genstackio/sdkgen",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "SDK Source Code Generator",
   "license": "MIT",
   "main": "lib/index.js",
