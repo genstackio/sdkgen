@@ -1,0 +1,12 @@
+package <%= packageName %>
+
+import "errors"
+
+func retry[T interface{}](worker func() (T, error), retriers map[string]r[T], mode string, options RetryOptions, ifError T) (T, error) {
+	retrier, ok := retriers[mode]
+	if !ok {
+		return ifError, errors.New("no retrier named '" + mode + "'")
+	}
+
+	return retrier(worker, options)
+}

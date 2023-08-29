@@ -1,0 +1,12 @@
+package <%= packageName %>
+
+import http2 "net/http"
+
+type w[T interface{}] func() (T, error)
+type r[T interface{}] func(w[T], RetryOptions) (T, error)
+
+var Retriers = map[string]r[*http2.Response]{
+	"default": func(w2 w[*http2.Response], options RetryOptions) (*http2.Response, error) {
+		return w2()
+	},
+}

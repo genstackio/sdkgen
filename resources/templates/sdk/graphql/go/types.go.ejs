@@ -1,0 +1,67 @@
+package <%= packageName %>
+
+import (
+	"bytes"
+	http2 "net/http"
+)
+
+type Client struct {
+	endpoint   string
+	env        string
+	identity   ClientIdentity
+	tokens     ClientTokens
+	options    ClientOptions
+	httpClient *http2.Client
+}
+
+type ClientOptions struct {
+	MinExpirationDelay int64
+}
+type ClientIdentity struct {
+	Username string
+	Password string
+}
+type ClientTokens struct {
+	AccessToken  string `json:"accessToken,omitempty"`
+	RefreshToken string `json:"refreshToken,omitempty"`
+}
+
+type FetchOptions struct {
+	Method     string
+	Body       interface{}
+	BodyReader *bytes.Buffer
+	Headers    map[string]string
+	Options    HttpOptions
+}
+
+type Token struct {
+	Exp int64
+}
+
+type HttpOptions struct {
+	Timeout int64
+	Client  *http2.Client
+}
+type GraphqlError struct {
+	Message    string `json:"message"`
+	Extensions struct {
+		Code      string `json:"code"`
+		Exception struct {
+			Code      interface{}                         `json:"code,string"`
+			Data      map[string]interface{}              `json:"data"`
+			ErrorType string                              `json:"errorType"`
+			ErrorInfo map[string]interface{}              `json:"errorInfo"`
+			Errors    map[string][]map[string]interface{} `json:"errors"`
+		} `json:"exception"`
+	} `json:"extensions"`
+}
+type Selections struct {
+	Fields []string
+	Subs   []Selection
+}
+type Selection struct {
+	Name string
+	Selections
+}
+type RetryOptions struct {
+}

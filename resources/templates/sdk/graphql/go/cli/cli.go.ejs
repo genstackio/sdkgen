@@ -1,0 +1,34 @@
+package main
+
+import (
+	"fmt"
+	"<%= 'undefined' === typeof moduleName ? 'main' : moduleName %>"
+	"<%= 'undefined' === typeof moduleName ? 'main' : moduleName %>/types"
+	"os"
+)
+
+func main() {
+	if len(os.Args) < 5 {
+		fmt.Println("Syntax: <%= packageName %> <clientId> <clientSecret> <env> <action>")
+		os.Exit(1)
+	}
+	sdk := <%= packageName %>.CreateEnvSdk(os.Args[3], os.Args[1], os.Args[2])
+	action := os.Args[4]
+	switch action {
+	case "test-credentials":
+		tokens, err := sdk.CreateAuthToken(types.CreateAuthTokenInput{
+			Username: gocoresdk.String(os.Args[1]),
+			Password: gocoresdk.String(os.Args[2]),
+		}, <%= packageName %>.Selections{})
+
+		if err != nil {
+			fmt.Println("ERROR: " + err.Error())
+			os.Exit(4)
+		}
+		fmt.Println("AccessToken: " + tokens.Token)
+		fmt.Println("RefreshToken: " + tokens.RefreshToken)
+	default:
+		fmt.Println("Error: unrecognized action '" + action + "'")
+		os.Exit(2)
+	}
+}

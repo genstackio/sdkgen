@@ -1,0 +1,5 @@
+package <%= packageName %>
+
+var Envs = map[string]string<%- JSON.stringify(Object.entries(('undefined' === typeof envs) ? {} : envs).reduce((acc, [k, v]) => Object.assign(acc, {[k]: v.graphql}), {}), null, 4).replace(/\n}$/, ",\n}") %>
+
+var DefaultEnv = <%- JSON.stringify(('undefined' === typeof defaultEnv) ? 'prod' : defaultEnv) %>

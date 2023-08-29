@@ -1,0 +1,184 @@
+package <%= packageName %>
+
+import (
+	"bytes"
+	"encoding/json"
+	baseErrors "errors"
+	baseHttp "net/http"
+	"strconv"
+)
+
+func buildQuery(queries map[string]q, queryKey string, selections Selections) (string, error) {
+	query, ok := queries[queryKey]
+
+	if !ok {
+		return "", baseErrors.New("unknown query '" + queryKey + "', did you create it in the queries config file?")
+	}
+
+	return buildFinalQuery(query.query, buildFinalSelections(selections, query.selections))
+}
+
+func gqlResult[T interface{}, U interface{}](errs *[]GraphqlError, err error, respData *T, getter func(*T) *U, errorType string, errorContext map[string]interface{}) (*U, error) {
+	return getter(respData), buildError(err, errs, errorType, errorContext)
+}
+func graphqlMutation[T interface{}](c *Client, gql string, variables map[string]interface{}, respData *T, headers map[string]string, allowedStatusCodes []int, retryMode string, retryOptions RetryOptions) (*[]GraphqlError, error) {
+	return graphql[T](c, gql, variables, respData, headers, allowedStatusCodes, retryMode, retryOptions)
+}
+func rawGraphqlMutation[T interface{}](c *Client, gql string, variables map[string]interface{}, respData *T, headers map[string]string, allowedStatusCodes []int, retryMode string, retryOptions RetryOptions) (*[]GraphqlError, error) {
+	return rawGraphql[T](c, gql, variables, respData, headers, allowedStatusCodes, retryMode, retryOptions)
+}
+func graphqlQuery[T interface{}](c *Client, gql string, variables map[string]interface{}, respData *T, headers map[string]string, allowedStatusCodes []int, retryMode string, retryOptions RetryOptions) (*[]GraphqlError, error) {
+	return graphql[T](c, gql, variables, respData, headers, allowedStatusCodes, retryMode, retryOptions)
+}
+func buildRequestForGraphql(c *Client, gql string, variables map[string]interface{}, headers map[string]string) (string, string, bytes.Buffer, map[string]string, error) {
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(struct {
+		Query     string                 `json:"query"`
+		Variables map[string]interface{} `json:"variables"`
+	}{Query: gql, Variables: variables})
+	if err != nil {
+		return "", "", body, nil, err
+	}
+	finalHeaders := mergeMaps(
+		headers,
+		map[string]string{
+			"Content-Type": "application/json; charset=utf-8",
+			"Accept":       "application/json; charset=utf-8",
+		},
+	)
+
+	return c.endpoint, baseHttp.MethodPost, body, finalHeaders, nil
+}
+
+func request(c *Client, url string, method string, body bytes.Buffer, headers map[string]string, allowedStatusCodes []int, retryMode string, retryOptions RetryOptions) (*baseHttp.Response, error) {
+	err := c.prepareAuthTokens()
+	if err != nil {
+		return nil, err
+	}
+
+	return httpWithRetry(c.httpClient, url, method, body, headers, allowedStatusCodes, retryMode, retryOptions)
+}
+
+func rawRequest(c *Client, url string, method string, body bytes.Buffer, headers map[string]string, allowedStatusCodes []int, retryMode string, retryOptions RetryOptions) (*baseHttp.Response, error) {
+	return httpWithRetry(c.httpClient, url, method, body, headers, allowedStatusCodes, retryMode, retryOptions)
+}
+
+func httpWithRetry(httpClient *baseHttp.Client, url string, method string, body bytes.Buffer, headers map[string]string, allowedStatusCodes []int, retryMode string, retryOptions RetryOptions) (*baseHttp.Response, error) {
+	rr, err := retry[*baseHttp.Response](func() (*baseHttp.Response, error) {
+		return http(httpClient, url, method, body, headers, allowedStatusCodes)
+	}, Retriers, retryMode, retryOptions, nil)
+
+	return rr, err
+}
+
+func isAllowedStatusCodes(code int, allowedCodes []int) bool {
+	for _, v := range allowedCodes {
+		if code == v {
+			return true
+		}
+	}
+	return false
+}
+
+func http(httpClient *baseHttp.Client, url string, method string, body bytes.Buffer, headers map[string]string, allowedStatusCodes []int) (*baseHttp.Response, error) {
+	rr, err := fetch(url, FetchOptions{
+		Method:     method,
+		BodyReader: &body,
+		Headers:    headers,
+		Options: HttpOptions{
+			Client: httpClient,
+		},
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(allowedStatusCodes) > 0 && !isAllowedStatusCodes(rr.StatusCode, allowedStatusCodes) {
+		s := ""
+		for _, v := range allowedStatusCodes {
+			if len(s) > 0 {
+				s = s + "," + strconv.Itoa(v)
+			} else {
+				s = strconv.Itoa(v)
+			}
+		}
+		return nil, baseErrors.New("api responded with an unauthorized status code (expected: " + s + ", actual: " + strconv.Itoa(rr.StatusCode) + ")")
+	}
+
+	return rr, err
+}
+
+// request(), dedicated for graphql
+func graphql[T interface{}](c *Client, gql string, variables map[string]interface{}, respData *T, extraHeaders map[string]string, allowedStatusCodes []int, retryMode string, retryOptions RetryOptions) (*[]GraphqlError, error) {
+	url, method, body, headers, err := buildRequestForGraphql(c, gql, variables, extraHeaders)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err2 := request(c, url, method, body, headers, allowedStatusCodes, retryMode, retryOptions)
+	return buildResponseForGraphql[T](res, err2, respData)
+}
+func rawGraphql[T interface{}](c *Client, gql string, variables map[string]interface{}, respData *T, extraHeaders map[string]string, allowedStatusCodes []int, retryMode string, retryOptions RetryOptions) (*[]GraphqlError, error) {
+	url, method, body, headers, err := buildRequestForGraphql(c, gql, variables, extraHeaders)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err2 := rawRequest(c, url, method, body, headers, allowedStatusCodes, retryMode, retryOptions)
+	return buildResponseForGraphql[T](res, err2, respData)
+}
+func buildResponseForGraphql[T interface{}](res *baseHttp.Response, err error, respData *T) (*[]GraphqlError, error) {
+	response := &struct {
+		Data   *T             `json:"data"`
+		Errors []GraphqlError `json:"errors"`
+	}{Data: respData}
+	if nil == res {
+		if err != nil {
+			return nil, err
+		}
+		return nil, baseErrors.New("no response to build graphql response errors")
+	}
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if nil != response && nil != response.Errors {
+		return &response.Errors, err
+	}
+	return nil, err
+}
+func mutation[T interface{}, U interface{}](c *Client, queryKey string, variables map[string]interface{}, respData *T, getter func(*T) *U, selections Selections, errorType string, errorContext map[string]interface{}) (*U, error) {
+	gql, err := buildQuery(Queries, queryKey, selections)
+	if err != nil {
+		return nil, err
+	}
+	headers := map[string]string{}
+	allowedStatusCodes := []int{200}
+	retryMode := "default"
+	retryOptions := RetryOptions{}
+	errs, err2 := graphqlMutation[T](c, gql, variables, respData, headers, allowedStatusCodes, retryMode, retryOptions)
+	return gqlResult[T, U](errs, err2, respData, getter, errorType, errorContext)
+}
+func rawMutation[T interface{}, U interface{}](c *Client, queryKey string, variables map[string]interface{}, respData *T, getter func(*T) *U, selections Selections, errorType string, errorContext map[string]interface{}) (*U, error) {
+	gql, err := buildQuery(Queries, queryKey, selections)
+	if err != nil {
+		return nil, err
+	}
+	headers := map[string]string{}
+	allowedStatusCodes := []int{200}
+	retryMode := "default"
+	retryOptions := RetryOptions{}
+	errs, err2 := rawGraphqlMutation[T](c, gql, variables, respData, headers, allowedStatusCodes, retryMode, retryOptions)
+	return gqlResult[T, U](errs, err2, respData, getter, errorType, errorContext)
+}
+
+func query[T interface{}, U interface{}](c *Client, queryKey string, variables map[string]interface{}, respData *T, getter func(*T) *U, selections Selections, errorType string, errorContext map[string]interface{}) (*U, error) {
+	gql, err := buildQuery(Queries, queryKey, selections)
+	if err != nil {
+		return nil, err
+	}
+	headers := map[string]string{}
+	allowedStatusCodes := []int{200}
+	retryMode := "default"
+	retryOptions := RetryOptions{}
+	errs, err2 := graphqlQuery[T](c, gql, variables, respData, headers, allowedStatusCodes, retryMode, retryOptions)
+	return gqlResult[T, U](errs, err2, respData, getter, errorType, errorContext)
+}
