@@ -6,6 +6,7 @@ import (
 	baseErrors "errors"
 	baseHttp "net/http"
 	"strconv"
+	"strings"
 )
 
 func buildQuery(queries map[string]q, queryKey string, selections Selections) (string, error) {
@@ -40,11 +41,16 @@ func buildRequestForGraphql(c *Client, gql string, variables map[string]interfac
 		return "", "", body, nil, err
 	}
 	finalHeaders := mergeMaps(
-		headers,
 		map[string]string{
-			"Content-Type": "application/json; charset=utf-8",
-			"Accept":       "application/json; charset=utf-8",
+			"User-Agent": strings.ReplaceAll("<%= ('undefined' === typeof userAgent) ? `${companyName.toLowerCase().replace(/[^a-z0-9]+/, '_')}-${packageName.replace(/^go/, '').replace(/sdk$/, '')}-sdk-go/{{version}}` : userAgent %>", "{{version}}", <%- 'undefined' !== typeof version ? version : '"1.0.0"' %>),
 		},
+		mergeMaps(
+			headers,
+			map[string]string{
+				"Content-Type": "application/json; charset=utf-8",
+				"Accept":       "application/json; charset=utf-8",
+			},
+		),
 	)
 
 	return c.endpoint, baseHttp.MethodPost, body, finalHeaders, nil

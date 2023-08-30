@@ -116,12 +116,13 @@ export abstract class BaseSdk {
 <% } %>
         let res: any;
         try {
+            const version = require(`${__dirname}/../package.json`).version;
             res = await this.fetch(`${this.endpoints[service]}${uri || ''}`, {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                    'User-Agent': '<%= ('undefined' === typeof userAgent) ? `${companyName.toLowerCase().replace(/[a-z0-9]+/, '_')}-graphql-typescript-sdk` : userAgent %>',
+                    'User-Agent': '<%= ('undefined' === typeof userAgent) ? `${companyName.toLowerCase().replace(/[^a-z0-9]+/, '_')}-${packageName.replace(/^.*\//, '').replace(/(-)?sdk(-js)?$/, '')}-sdk-ts/{{version}}` : userAgent %>'.replace('{{version}}', version),
                     ...(headers || {})
                 },
                 body: body && JSON.stringify(body),
