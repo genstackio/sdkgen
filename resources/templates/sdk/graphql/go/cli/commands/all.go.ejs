@@ -1,0 +1,16 @@
+package commands
+
+import "<%= 'undefined' === typeof moduleName ? 'main' : moduleName %>"
+
+type Command func(*<%= packageName %>.Client) (interface{}, error)
+
+var Commands = BuildCommands()
+
+func BuildCommands() map[string]Command {
+	cmds := map[string]Command{}
+
+<% (('undefined' !== typeof commands) ? commands : []).forEach(c => { -%>
+	cmds["<%= c %>"] = Command<%= c.split(/-/g).map(x => `${x.slice(0, 1).toUpperCase()}${x.slice(1)}`).join('') %>
+<% }) %>
+	return cmds
+}

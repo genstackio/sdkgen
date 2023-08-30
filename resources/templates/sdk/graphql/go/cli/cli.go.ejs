@@ -1,34 +1,51 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
 	"<%= 'undefined' === typeof moduleName ? 'main' : moduleName %>"
-	"<%= 'undefined' === typeof moduleName ? 'main' : moduleName %>/types"
+	"<%= 'undefined' === typeof moduleName ? 'main' : moduleName %>/cli/commands"
 	"os"
 )
 
 func main() {
-	if len(os.Args) < 5 {
-		fmt.Println("Syntax: <%= packageName %> <clientId> <clientSecret> <env> <action>")
+	if len(os.Args) < 2 {
+		fmt.Println("Syntax: <%= packageName %> <action>")
 		os.Exit(1)
 	}
-	sdk := <%= packageName %>.CreateEnvSdk(os.Args[3], os.Args[1], os.Args[2])
-	action := os.Args[4]
-	switch action {
-	case "test-credentials":
-		tokens, err := sdk.CreateAuthToken(types.CreateAuthTokenInput{
-			Username: gocoresdk.String(os.Args[1]),
-			Password: gocoresdk.String(os.Args[2]),
-		}, <%= packageName %>.Selections{})
 
-		if err != nil {
-			fmt.Println("ERROR: " + err.Error())
-			os.Exit(4)
-		}
-		fmt.Println("AccessToken: " + tokens.Token)
-		fmt.Println("RefreshToken: " + tokens.RefreshToken)
-	default:
+	pEnv := flag.String("env", "default", "api env to target")
+	pUsername := flag.String("username", "", "api username to use")
+	pPassword := flag.String("password", "", "api password to use")
+
+	flag.Parse()
+	action := flag.Arg(0)
+
+	cmd, ok := commands.Commands[action]
+
+	if !ok {
 		fmt.Println("Error: unrecognized action '" + action + "'")
 		os.Exit(2)
 	}
+
+	sdk := <%= packageName %>.CreateEnvSdk(*pEnv, *pUsername, *pPassword)
+
+	r, err := cmd(sdk)
+
+	if err != nil {
+		fmt.Println("ERROR: " + err.Error())
+		os.Exit(3)
+	}
+	if r == nil {
+		os.Exit(0)
+	}
+
+	s, err2 := json.MarshalIndent(r, "", "\t")
+	if err2 != nil {
+		fmt.Println("ERROR: " + err2.Error())
+		os.Exit(4)
+	}
+
+	fmt.Println(string(s))
 }

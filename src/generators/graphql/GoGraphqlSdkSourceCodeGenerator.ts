@@ -23,6 +23,7 @@ export class GoGraphqlSdkSourceCodeGenerator extends AbstractGraphQLSdkSourceCod
             '.gitignore': r,
             'go.mod': r,
             'cli/cli.go': r,
+            'cli/commands/all.go': r,
             'queries.go': () => queriesFileContent,
             'types_utils.go': r,
             'types/input.go': () => inputsFileContent,
