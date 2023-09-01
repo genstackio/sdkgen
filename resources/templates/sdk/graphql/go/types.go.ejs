@@ -65,3 +65,9 @@ type Selection struct {
 }
 type RetryOptions struct {
 }
+<% if (('undefined' !== typeof modelGetters) && modelGetters.length) { %>
+<% modelGetters.forEach(mg => { %>type <%= `${mg.slice(0, 1).toUpperCase()}${mg.slice(1)}` %>Aware interface {
+	Get<%= `${mg.slice(0, 1).toUpperCase()}${mg.slice(1)}` %>() string
+}
+<% }) -%>
+<% } -%>

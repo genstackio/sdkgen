@@ -185,14 +185,25 @@ ${methods.map(([methodName, q]) => this.buildSdkMethod(methodName, q, def, vars)
 `.trim();
     }
 
-    protected async buildTypesFileContent(def: sdk_service_definition_inputs | sdk_service_definition_models, inputMode = false) {
+    protected buildTypeModelGetters(modelGetters, q) {
+        const typeName = this.capitalizeFirstLetter(q.name);
+        const z = (modelGetters || []).reduce((acc, k) => Object.assign(acc, {[k]: true}), {} as Record<string, true>);
+        const t = Object.values(q.fields || {}).filter((a: any) => !!z[a.name || '']).map((f: any) => {
+            const fieldName = this.capitalizeFirstLetter(f.name);
+            return `func (m *${typeName}) Get${fieldName}() string {\n\treturn m.${fieldName}\n}`
+        }).join("\n").trim();
+
+        return t ? `\n${t}` : '';
+    }
+    protected async buildTypesFileContent(def: sdk_service_definition_inputs | sdk_service_definition_models, vars: any, inputMode = false) {
         return `
 package types
 
 ${Object.entries(def).map(([_, q]) => {
-            return `type ${this.capitalizeFirstLetter(q.name)} struct {
+    const typeName = this.capitalizeFirstLetter(q.name);
+    return `type ${typeName} struct {
 ${this.buildTypeFields(q.fields, q.name, "\t", inputMode)}
-}`;
+}${(!!vars?.modelGetters && !inputMode) ? this.buildTypeModelGetters(vars.modelGetters, q) : ''}`;
         }).join("\n")}
 `.trim();
     }
@@ -227,11 +238,11 @@ ${queries.map(([_, q]) => {
     }
     // noinspection JSUnusedLocalSymbols
     protected async buildInputsFileContent(def: sdk_service_definition, vars: any) {
-        return this.buildTypesFileContent(def.inputs || {}, true);
+        return this.buildTypesFileContent(def.inputs || {}, vars, true);
     }
     // noinspection JSUnusedLocalSymbols
     protected async buildModelsFileContent(def: sdk_service_definition, vars: any) {
-        return this.buildTypesFileContent(def.models || {});
+        return this.buildTypesFileContent(def.models || {}, vars);
     }
     protected capitalizeFirstLetter(s) {
         return s.charAt(0).toUpperCase() + s.slice(1);
