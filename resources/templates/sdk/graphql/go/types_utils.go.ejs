@@ -6,8 +6,24 @@ func Bool(v bool) *bool {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func BoolOrNil(v bool) *bool {
+	if !v {
+		return nil
+	}
+	return Bool(v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func BoolSlice(v []bool) *[]bool {
 	return Slice[bool](v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func BoolSliceOrNil(v []bool) *[]bool {
+	if len(v) == 0 {
+		return nil
+	}
+	return BoolSlice(v)
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -16,8 +32,24 @@ func BoolPointerSlice(v []bool) *[]*bool {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func BoolPointerSliceOrNil(v []bool) *[]*bool {
+	if len(v) == 0 {
+		return nil
+	}
+	return BoolPointerSlice(v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func Float32(v float32) *float32 {
 	return &v
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func Float32OrNil(v float32) *float32 {
+	if v == float32(0) {
+		return nil
+	}
+	return Float32(v)
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -26,8 +58,24 @@ func Float32Slice(v []float32) *[]float32 {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func Float32SliceOrNil(v []float32) *[]float32 {
+	if len(v) == 0 {
+		return nil
+	}
+	return Float32Slice(v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func Float32PointerSlice(v []float32) *[]*float32 {
 	return PointerSlice[float32](v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func Float32PointerSliceOrNil(v []float32) *[]*float32 {
+	if len(v) == 0 {
+		return nil
+	}
+	return Float32PointerSlice(v)
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -36,8 +84,24 @@ func Float64(v float64) *float64 {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func Float64OrNil(v float64) *float64 {
+	if v == float64(0) {
+		return nil
+	}
+	return Float64(v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func Float64Slice(v []float64) *[]float64 {
 	return Slice[float64](v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func Float64SliceOrNil(v []float64) *[]float64 {
+	if len(v) == 0 {
+		return nil
+	}
+	return Float64Slice(v)
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -46,8 +110,24 @@ func Float64PointerSlice(v []float64) *[]*float64 {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func Float64PointerSliceOrNil(v []float64) *[]*float64 {
+	if len(v) == 0 {
+		return nil
+	}
+	return Float64PointerSlice(v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func Int(v int) *int {
 	return &v
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func IntOrNil(v int) *int {
+	if v == int(0) {
+		return nil
+	}
+	return Int(v)
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -56,8 +136,24 @@ func IntSlice(v []int) *[]int {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func IntSliceOrNil(v []int) *[]int {
+	if len(v) == 0 {
+		return nil
+	}
+	return IntSlice(v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func IntPointerSlice(v []int) *[]*int {
 	return PointerSlice[int](v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func IntPointerSliceOrNil(v []int) *[]*int {
+	if len(v) == 0 {
+		return nil
+	}
+	return IntPointerSlice(v)
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -66,8 +162,24 @@ func Int32(v int32) *int32 {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func Int32OrNil(v int32) *int32 {
+	if v == int32(0) {
+		return nil
+	}
+	return Int32(v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func Int32Slice(v []int32) *[]int32 {
 	return Slice[int32](v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func Int32SliceOrNil(v []int32) *[]int32 {
+	if len(v) == 0 {
+		return nil
+	}
+	return Int32Slice(v)
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -76,8 +188,24 @@ func Int32PointerSlice(v []int32) *[]*int32 {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func Int32PointerSliceOrNil(v []int32) *[]*int32 {
+	if len(v) == 0 {
+		return nil
+	}
+	return Int32PointerSlice(v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func Int64(v int64) *int64 {
 	return &v
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func Int64OrNil(v int64) *int64 {
+	if v == int64(0) {
+		return nil
+	}
+	return Int64(v)
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -86,12 +214,35 @@ func Int64Slice(v []int64) *[]int64 {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func Int64SliceOrNil(v []int64) *[]int64 {
+	if len(v) == 0 {
+		return nil
+	}
+	return Int64Slice(v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func Int64PointerSlice(v []int64) *[]*int64 {
 	return PointerSlice[int64](v)
 }
 
+//goland:noinspection GoUnusedExportedFunction
+func Int64PointerSliceOrNil(v []int64) *[]*int64 {
+	if len(v) == 0 {
+		return nil
+	}
+	return Int64PointerSlice(v)
+}
+
 func Slice[T interface{}](v []T) *[]T {
 	return &v
+}
+
+func SliceOrNil[T interface{}](v []T) *[]T {
+	if len(v) == 0 {
+		return nil
+	}
+	return Slice[T](v)
 }
 
 func PointerSlice[T interface{}](v []T) *[]*T {
@@ -102,9 +253,24 @@ func PointerSlice[T interface{}](v []T) *[]*T {
 	return &out
 }
 
+func PointerSliceOrNil[T interface{}](v []T) *[]*T {
+	if len(v) == 0 {
+		return nil
+	}
+	return PointerSlice[T](v)
+}
+
 //goland:noinspection GoUnusedExportedFunction
 func String(v string) *string {
 	return &v
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func StringOrNil(v string) *string {
+	if len(v) == 0 {
+		return nil
+	}
+	return String(v)
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -113,6 +279,16 @@ func StringSlice(v []string) *[]string {
 }
 
 //goland:noinspection GoUnusedExportedFunction
+func StringSliceOrNil(v []string) *[]string {
+	return SliceOrNil[string](v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
 func StringPointerSlice(v []string) *[]*string {
 	return PointerSlice[string](v)
+}
+
+//goland:noinspection GoUnusedExportedFunction
+func StringPointerSliceOrNil(v []string) *[]*string {
+	return PointerSliceOrNil[string](v)
 }
