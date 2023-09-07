@@ -9,6 +9,7 @@ import (
 	"github.com/lestrrat-go/jwx/jwt"
 	"io"
 	http2 "net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,8 @@ func mergeFieldsUnique(a []string, b []string) []string {
 		keys[i] = k
 		i++
 	}
+
+	sort.Strings(keys)
 
 	return keys
 }
@@ -94,7 +97,7 @@ func buildFinalSelections(a Selections, b Selections) Selections {
 		}
 	}
 
-	return b
+	return a
 }
 func buildFinalQuery(query string, selections Selections) (string, error) {
 	s := ""

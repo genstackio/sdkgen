@@ -35,6 +35,7 @@ export class GoGraphqlSdkSourceCodeGenerator extends AbstractGraphQLSdkSourceCod
             'factories.go': r,
             'fields.go': r,
             'graphql.go': r,
+            'graphql_test.go': r,
             'retriers.go': r,
             'retry.go': r,
             'types.go': r,
