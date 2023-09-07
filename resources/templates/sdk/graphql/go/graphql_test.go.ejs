@@ -1,0 +1,59 @@
+package <%= packageName %>
+
+import (
+	"testing"
+)
+
+func expectBuiltQuery(t *testing.T, queries map[string]q, queryName string, selections *Selections, expected string) {
+	gql, err := buildQuery(queries, queryName, *selections)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if gql != expected {
+		t.Fatalf("bad query (expected: %s, actual: %s)", expected, gql)
+	}
+}
+
+type s struct {
+	Q string
+	S *Selections
+	E string
+}
+
+func TestBuildQuery(t *testing.T) {
+	queries := map[string]q{
+		"myquery": {query: "aaa { @selections@ }", selections: Selections{Fields: []string{"a", "b"}}},
+	}
+	for k, v := range map[string]s{
+		"query with explicit defaults fields requested return defaults fields": {
+			"myquery", DefaultFields(), "aaa { a b }",
+		},
+		"query with custom defaults fields requested return defaults fields": {
+			"myquery", Fields("@"), "aaa { a b }",
+		},
+		"query with custom fields containing defaults fields requested return defaults fields + other fields": {
+			"myquery", Fields("@", "z"), "aaa { a b z }",
+		},
+		"query with custom fields requested return custom fields only": {
+			"myquery", Fields("id", "code"), "aaa { id code }",
+		},
+		"query with sub requested return sub": {
+			"myquery", Fields("n", "p").Sub("mypage", Selections{
+				Fields: []string{"x", "y"},
+				Subs: []Selection{
+					{Name: "items", Selections: Selections{
+						Fields: []string{"bla", "bli"},
+						Subs:   nil,
+					}},
+				},
+			}), "aaa { n p mypage { x y items { bla bli } } }",
+		},
+	} {
+		t.Run(k, func(t *testing.T) {
+			expectBuiltQuery(t, queries, v.Q, v.S, v.E)
+		})
+
+	}
+}
