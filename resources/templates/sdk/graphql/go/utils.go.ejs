@@ -162,6 +162,16 @@ func mapGraphqlError(err GraphqlError, operation string, params map[string]inter
 			Type:  fmt.Sprintf("%s", params["type"]),
 			Err:   err,
 		}
+	case "business-error":
+		code, _ := strconv.Atoi(fmt.Sprintf("%.0f", err.Extensions.Exception.Data["code"]))
+		if code == 0 {
+			code = 12997
+		}
+		return errors.BusinessError{
+			Code:    code,
+			Message: fmt.Sprintf("%s", err.Extensions.Exception.Data["message"]),
+			Value:   fmt.Sprintf("%s", err.Extensions.Exception.Data["value"]),
+		}
 	case "validation":
 		var fieldNames []string
 		for k := range err.Extensions.Exception.ErrorInfo {
