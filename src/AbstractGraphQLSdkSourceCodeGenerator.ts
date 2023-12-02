@@ -26,6 +26,7 @@ import {
     GraphQLScalarType,
     GraphQLType,
     GraphQLUnionType,
+    GraphQLInterfaceType,
 } from "graphql";
 
 export abstract class AbstractGraphQLSdkSourceCodeGenerator extends AbstractCodeGenerator {
@@ -234,6 +235,8 @@ export abstract class AbstractGraphQLSdkSourceCodeGenerator extends AbstractCode
                 return this.buildEnumTypeMapping(type as GraphQLEnumType);
             case type instanceof GraphQLUnionType:
                 return this.buildUnionTypeMapping(type as GraphQLUnionType);
+            case type instanceof GraphQLInterfaceType:
+                return this.buildInterfaceTypeMapping(type as GraphQLInterfaceType);
             case type instanceof GraphQLObjectType:
                 return this.buildObjectTypeMapping(type as GraphQLObjectType);
             case type instanceof GraphQLInputObjectType:
@@ -342,6 +345,9 @@ export abstract class AbstractGraphQLSdkSourceCodeGenerator extends AbstractCode
     }
     buildUnionTypeMapping(type: GraphQLUnionType): sdk_service_type {
         return {type: type.name, types: type.getTypes().map(t => this.convertGraphQLType(t)), gqlType: type.name};
+    }
+    buildInterfaceTypeMapping(type: GraphQLInterfaceType): sdk_service_type {
+        return {type: type.name, gqlType: type.name, ...((type as any)._fields.length ? {fields: this.convertGraphQLTypeFields((type as any)._fields)} : {})};
     }
     buildObjectTypeMapping(type: GraphQLObjectType): sdk_service_type {
         return {type: type.name, gqlType: type.name, ...((type as any)._fields.length ? {fields: this.convertGraphQLTypeFields((type as any)._fields)} : {})};
