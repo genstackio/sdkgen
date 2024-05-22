@@ -47,7 +47,7 @@ export abstract class BaseSdk {
         await this.prepareAuthTokens();
         return this.tokens?.accessToken ? this.decodeToken(this.tokens!.accessToken) : undefined;
     }
-    protected getIdentity(): sdk_identity {
+    protected getCurrentIdentity(): sdk_identity {
         return this.identity;
     }
     protected isIdentitifed(): boolean {
@@ -64,7 +64,7 @@ export abstract class BaseSdk {
     }
     protected async refreshAccessToken() {
         debugSdkTokens('refresh');
-        if (this.isTokenExpired(this.tokens?.refreshToken)) return this.setTokens(await this.createAuthTokensFromIdentity(this.getIdentity()));
+        if (this.isTokenExpired(this.tokens?.refreshToken)) return this.setTokens(await this.createAuthTokensFromIdentity(this.getCurrentIdentity()));
         return this.setTokens(await this.createAuthTokensFromRefreshToken(this.tokens!.refreshToken));
     }
     protected isTokenExpired(token: string|undefined) {
