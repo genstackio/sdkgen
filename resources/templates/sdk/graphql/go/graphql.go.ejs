@@ -62,7 +62,14 @@ func request(c *Client, url string, method string, body bytes.Buffer, headers ma
 		return nil, err
 	}
 
-	return httpWithRetry(c.httpClient, url, method, body, headers, allowedStatusCodes, retryMode, retryOptions)
+	finalHeaders := headers
+	authHeaders := map[string]string{}
+	if len(c.tokens.AccessToken) > 0 {
+		authHeaders["Authorization"] = "Bearer " + c.tokens.AccessToken
+		finalHeaders = mergeMaps(headers, authHeaders)
+	}
+
+	return httpWithRetry(c.httpClient, url, method, body, finalHeaders, allowedStatusCodes, retryMode, retryOptions)
 }
 
 func rawRequest(c *Client, url string, method string, body bytes.Buffer, headers map[string]string, allowedStatusCodes []int, retryMode string, retryOptions RetryOptions) (*baseHttp.Response, error) {
